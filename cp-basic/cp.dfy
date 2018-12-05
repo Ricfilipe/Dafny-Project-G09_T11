@@ -15,9 +15,13 @@ method ArrayFromSeq<A>(s: seq<A>) returns (a: array<A>)
 
 method {:main} Main(ghost env: HostEnvironment?)
   requires env != null && env.Valid() && env.ok.ok();
+  requires |env.constants.CommandLineArgs()|>= 3
   modifies env.ok
   modifies env.files
 {
+  //adicionar throw a erro caso não haja argumentos suficientes.
+  var orignal := HostConstants.GetCommandLineArg(1,env);
+  var copy := HostConstants.GetCommandLineArg(2,env);
 
 
 
