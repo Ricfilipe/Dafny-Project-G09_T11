@@ -48,7 +48,9 @@ method {:main} Main(ghost env: HostEnvironment?)
             successClose := originalStream.Close();
             if(successClose){
               successCloseCopy := copyStream.Close();        
-
+              if(successCloseCopy){
+                print("DONE!");
+              }
             }
           }
         }
