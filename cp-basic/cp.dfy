@@ -27,6 +27,11 @@ method {:main} Main(ghost env: HostEnvironment?)
           env.files.state() == old(env.files.state())[copy:= old(env.files.state())[original]];
   ensures env.ok.ok() ==> copyFile(env.constants.CommandLineArgs()[1],env.constants.CommandLineArgs()[2],env); 
   {
+    // TODO: Detectar Excepções e escrever mensagens (fazer através de elses):
+    //  -Mais ou menos que 3 argumentos (if)
+    //  -O ficheiro de cópia já existe
+    //  -O ficheiro Original não existe
+    //  -Erro genérico
   var bufferSize:=0;
   var sucessLen;
   var original:= env.constants.GetCommandLineArg(1,env);   
