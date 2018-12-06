@@ -17,54 +17,64 @@ method {:main} Main(ghost env: HostEnvironment?)
   requires env != null && env.Valid() && env.ok.ok();
   requires |env.constants.CommandLineArgs()|>= 3
   requires env.constants.CommandLineArgs()[1] in env.files.state()
+  requires  env.constants.CommandLineArgs()[2] !in env.files.state()
   modifies env.ok
   modifies env.files 
   ensures env.ok.ok() ==> env.constants.CommandLineArgs()[2] in env.files.state();
-  ensures env.constants.CommandLineArgs()[1] in env.files.state()
-  //ensures env.ok.ok()  ==> var copyname := env.constants.CommandLineArgs()[2];
-    //      old(env.files.state()) == env.files.state()[copyname:=[]];
+  ensures env.ok.ok() ==> env.constants.CommandLineArgs()[1] in env.files.state()
+  ensures env.ok.ok()  ==> var copy := env.constants.CommandLineArgs()[2];
+                          var original :=env.constants.CommandLineArgs()[1];
+          env.files.state() == old(env.files.state())[copy:= old(env.files.state())[original]];
   ensures env.ok.ok() ==> copyFile(env.constants.CommandLineArgs()[1],env.constants.CommandLineArgs()[2],env); 
   {
-   
+    // TODO: Detectar Excepções e escrever mensagens (fazer através de elses):
+    //  -Mais ou menos que 3 argumentos (if)
+    //  -O ficheiro de cópia já existe
+    //  -O ficheiro Original não existe
+    //  -Erro genérico
   var bufferSize:=0;
   var sucessLen;
-  var original:= env.constants.GetCommandLineArg(1,env);    var copy :=env.constants.GetCommandLineArg(2,env);
+  var original:= env.constants.GetCommandLineArg(1,env);   
+   var copy :=env.constants.GetCommandLineArg(2,env);
   sucessLen,bufferSize := FileStream.FileLength(original,env);
-  
- 
   var originalStream, copyStream;
   var successOriginal,successCopy:=false,false;
   var successRead,successWrite := false,false;
    var successClose,successCloseCopy := false,false;
   if(sucessLen){
-     var buffer := new  byte[bufferSize];
-  successOriginal,originalStream := FileStream.Open(original,env);
-   if(successOriginal){
+    var buffer := new  byte[bufferSize];
+    successOriginal,originalStream := FileStream.Open(original,env);
+    if(successOriginal){
       successCopy,copyStream := FileStream.Open(copy,env);
       if(successCopy){
         successRead := originalStream.Read(0,buffer,0,bufferSize);
+        assert env.ok.ok() ==> old(env.files.state())[original[..]] == buffer[..];
         if(successRead){
-          successWrite := copyStream.Write(0,buffer,0,bufferSize);
+          successWrite := copyStream.Write(0,buffer,0,bufferSize); 
+          assert env.ok.ok() ==> env.files.state() == old(env.files.state())[copy[..]:=buffer[..]] ; 
           if(successWrite){
             successClose := originalStream.Close();
-           if(successClose){
-            successCloseCopy := copyStream.Close();
-           }
+            if(successClose){
+              successCloseCopy := copyStream.Close();        
+              if(successCloseCopy){
+                print("DONE!");
+              }
+            }
           }
         }
       }
     }
   }
-  if(successCloseCopy){
-    print("DONE!");
-  }
+  
 
   } 
   
 predicate copyFile(original : seq<char>,copy : seq<char>, env: HostEnvironment)
+reads env.ok
 reads env
 reads env.files
-requires env.files != null
+requires  env.Valid() 
+requires env.ok.ok()
 requires original in env.files.state()
 requires copy in env.files.state()
 {
