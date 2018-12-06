@@ -22,8 +22,9 @@ method {:main} Main(ghost env: HostEnvironment?)
   modifies env.files 
   ensures env.ok.ok() ==> env.constants.CommandLineArgs()[2] in env.files.state();
   ensures env.ok.ok() ==> env.constants.CommandLineArgs()[1] in env.files.state()
-  ensures env.ok.ok()  ==> var copyname := env.constants.CommandLineArgs()[2];
-          old(env.files.state()) == env.files.state()[copyname:=[]];
+  ensures env.ok.ok()  ==> var copy := env.constants.CommandLineArgs()[2];
+                          var original :=env.constants.CommandLineArgs()[1];
+          env.files.state() == old(env.files.state())[copy:= old(env.files.state())[original]];
   ensures env.ok.ok() ==> copyFile(env.constants.CommandLineArgs()[1],env.constants.CommandLineArgs()[2],env); 
   {
   var bufferSize:=0;
@@ -42,8 +43,10 @@ method {:main} Main(ghost env: HostEnvironment?)
       successCopy,copyStream := FileStream.Open(copy,env);
       if(successCopy){
         successRead := originalStream.Read(0,buffer,0,bufferSize);
+        assert env.ok.ok() ==> old(env.files.state())[original[..]] == buffer[..];
         if(successRead){
-          successWrite := copyStream.Write(0,buffer,0,bufferSize);         
+          successWrite := copyStream.Write(0,buffer,0,bufferSize); 
+          assert env.ok.ok() ==> env.files.state() == old(env.files.state())[copy[..]:=buffer[..]] ; 
           if(successWrite){
             successClose := originalStream.Close();
             if(successClose){
