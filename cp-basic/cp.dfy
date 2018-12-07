@@ -35,12 +35,12 @@ method {:main} Main(ghost env: HostEnvironment?)
   var bufferSize:=0;
   var sucessLen;
   var original:= env.constants.GetCommandLineArg(1,env);   
-   var copy :=env.constants.GetCommandLineArg(2,env);
+  var copy :=env.constants.GetCommandLineArg(2,env);
   sucessLen,bufferSize := FileStream.FileLength(original,env);
   var originalStream, copyStream;
   var successOriginal,successCopy:=false,false;
   var successRead,successWrite := false,false;
-   var successClose,successCloseCopy := false,false;
+  var successClose,successCloseCopy := false,false;
   if(sucessLen){
     var buffer := new  byte[bufferSize];
     successOriginal,originalStream := FileStream.Open(original,env);
@@ -59,11 +59,32 @@ method {:main} Main(ghost env: HostEnvironment?)
               if(successCloseCopy){
                 print("DONE!");
               }
+              else{
+                print("ERROR in closing DestFile");
+              }
+            }
+            else{
+              print("Error in closing SourceFile");
             }
           }
+          else{
+            print("Error in writing to DestFile");
+          }
+        }
+        else{
+          print("Error in reading from SourceFile");
         }
       }
+      else{
+        print("Error in opening DestFile");
+      }
     }
+    else{
+      print("Error in opening SourceFile");
+    }
+  }
+  else{
+    print("Error in measuring SourceFile length");
   }
   
 
