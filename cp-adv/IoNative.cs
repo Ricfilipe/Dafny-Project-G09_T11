@@ -112,6 +112,7 @@ namespace @__default {
             try
             {
                 fstream.Seek(file_offset, System.IO.SeekOrigin.Begin);
+                fstream.SetLength(file_offset);
                 fstream.Write(buffer, start, num_bytes);
                 ok = true;
             }
