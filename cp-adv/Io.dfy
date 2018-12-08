@@ -155,9 +155,8 @@ class FileStream
         ensures  ok ==> 
                   var old_file := old(env.files.state()[Name()]);
                   env.files.state() == old(env.files.state())[Name() := old_file[..file_offset] 
-                                                                      + buffer[start..start as int + num_bytes as int] 
-                                                                      + if file_offset as int + num_bytes as int > |old_file| then [] 
-                                                                        else old_file[file_offset as int + num_bytes as int..]];
+                                                                      + buffer[start..start as int + num_bytes as int] ]
+                                                                      
 
 }
 
