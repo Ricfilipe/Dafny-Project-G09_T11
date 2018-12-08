@@ -30,16 +30,31 @@ method {:main} Main(ghost env: HostEnvironment?)
   ensures env.ok.ok() ==> copyFile(env.constants.CommandLineArgs()[1], env.constants.CommandLineArgs()[2], env)
   decreases env
 {
+  var numArgs := env.constants.NumCommandLineArgs(env);
+  if numArgs < 3 {
+    print ""Not enough arguments, it requires 2"";
+  }
   var bufferSize := 0;
-  var sucessLen;
+  var sucessLen := false;
   var original := env.constants.GetCommandLineArg(1, env);
   var copy := env.constants.GetCommandLineArg(2, env);
-  sucessLen, bufferSize := FileStream.FileLength(original, env);
+  var OriginalExist := FileStream.FileExists(original, env);
+  if !OriginalExist {
+    print ""Original file not fount..."";
+  }
+  var CopyExist := FileStream.FileExists(copy, env);
+  if CopyExist {
+    print ""Destination file already exists..."";
+  }
+  assert CopyExist ==> old(env.constants.CommandLineArgs())[2] in env.files.state();
+  if OriginalExist {
+    sucessLen, bufferSize := FileStream.FileLength(original, env);
+  }
   var originalStream, copyStream;
   var successOriginal, successCopy := false, false;
   var successRead, successWrite := false, false;
   var successClose, successCloseCopy := false, false;
-  if sucessLen {
+  if sucessLen && !CopyExist {
     var buffer := new byte[bufferSize];
     successOriginal, originalStream := FileStream.Open(original, env);
     if successOriginal {
@@ -62,6 +77,9 @@ method {:main} Main(ghost env: HostEnvironment?)
         }
       }
     }
+  }
+  if !successCloseCopy && OriginalExist && !CopyExist {
+    print ""Something went wrong"";
   }
 }
 
@@ -1753,7 +1771,7 @@ namespace @__default {
       @a = new @A[0];
     TAIL_CALL_START: ;
       var _nw0 = new @A[(int)(new BigInteger((@s).Length))];
-      var _arrayinit0 = Dafny.Helpers.Id<@Func<Dafny.Sequence<@A>,@Func<BigInteger,@A>>>((@_99_s) => (@_100_i) => (@_99_s).Select(@_100_i))(@s);
+      var _arrayinit0 = Dafny.Helpers.Id<@Func<Dafny.Sequence<@A>,@Func<BigInteger,@A>>>((@_107_s) => (@_108_i) => (@_107_s).Select(@_108_i))(@s);
       for (int _arrayinit_00 = 0; _arrayinit_00 < _nw0.Length; _arrayinit_00++) {
         _nw0[_arrayinit_00] = _arrayinit0(_arrayinit_00);
       }
@@ -1762,89 +1780,119 @@ namespace @__default {
     public static void @Main()
     {
     TAIL_CALL_START: ;
-      int @_101_bufferSize = 0;
-      int _rhs0 = 0;
-      @_101_bufferSize = _rhs0;
-      bool @_102_sucessLen = false;
-      char[] @_103_original = (char[])null;
-      char[] _out0;
-      @HostConstants.@GetCommandLineArg(1UL, out _out0);
-      @_103_original = _out0;
-      char[] @_104_copy = (char[])null;
-      char[] _out1;
-      @HostConstants.@GetCommandLineArg(2UL, out _out1);
-      @_104_copy = _out1;
-      bool _out2;
-      int _out3;
-      @FileStream.@FileLength(@_103_original, out _out2, out _out3);
-      @_102_sucessLen = _out2;
-      @_101_bufferSize = _out3;
-      @FileStream @_105_originalStream = default(@FileStream);
-      @FileStream @_106_copyStream = default(@FileStream);
-      bool @_107_successOriginal = false;
-      bool @_108_successCopy = false;
-      bool _rhs2 = false;
-      bool _rhs1 = _rhs2;
-      bool _rhs4 = false;
-      bool _rhs3 = _rhs4;
-      @_107_successOriginal = _rhs1;
-      @_108_successCopy = _rhs3;
-      bool @_109_successRead = false;
-      bool @_110_successWrite = false;
-      bool _rhs6 = false;
-      bool _rhs5 = _rhs6;
-      bool _rhs8 = false;
-      bool _rhs7 = _rhs8;
-      @_109_successRead = _rhs5;
-      @_110_successWrite = _rhs7;
-      bool @_111_successClose = false;
-      bool @_112_successCloseCopy = false;
-      bool _rhs10 = false;
-      bool _rhs9 = _rhs10;
-      bool _rhs12 = false;
-      bool _rhs11 = _rhs12;
-      @_111_successClose = _rhs9;
-      @_112_successCloseCopy = _rhs11;
-      if (@_102_sucessLen)
+      uint @_109_numArgs = 0;
+      uint _out0;
+      @HostConstants.@NumCommandLineArgs(out _out0);
+      @_109_numArgs = _out0;
+      if ((@_109_numArgs) < (3U))
       {
-        byte[] @_113_buffer = (byte[])null;
-        var _nw1 = new byte[(int)(@_101_bufferSize)];
-        @_113_buffer = _nw1;
-        bool _out4;
-        @FileStream _out5;
-        @FileStream.@Open(@_103_original, out _out4, out _out5);
-        @_107_successOriginal = _out4;
-        @_105_originalStream = _out5;
-        if (@_107_successOriginal)
+        System.Console.Write(Dafny.Sequence<char>.FromString("Not enough arguments, it requires 2"));
+      }
+      int @_110_bufferSize = 0;
+      int _rhs0 = 0;
+      @_110_bufferSize = _rhs0;
+      bool @_111_sucessLen = false;
+      bool _rhs1 = false;
+      @_111_sucessLen = _rhs1;
+      char[] @_112_original = (char[])null;
+      char[] _out1;
+      @HostConstants.@GetCommandLineArg(1UL, out _out1);
+      @_112_original = _out1;
+      char[] @_113_copy = (char[])null;
+      char[] _out2;
+      @HostConstants.@GetCommandLineArg(2UL, out _out2);
+      @_113_copy = _out2;
+      bool @_114_OriginalExist = false;
+      bool _out3;
+      @FileStream.@FileExists(@_112_original, out _out3);
+      @_114_OriginalExist = _out3;
+      if (!(@_114_OriginalExist))
+      {
+        System.Console.Write(Dafny.Sequence<char>.FromString("Original file not fount..."));
+      }
+      bool @_115_CopyExist = false;
+      bool _out4;
+      @FileStream.@FileExists(@_113_copy, out _out4);
+      @_115_CopyExist = _out4;
+      if (@_115_CopyExist)
+      {
+        System.Console.Write(Dafny.Sequence<char>.FromString("Destination file already exists..."));
+      }
+      { }
+      if (@_114_OriginalExist)
+      {
+        bool _out5;
+        int _out6;
+        @FileStream.@FileLength(@_112_original, out _out5, out _out6);
+        @_111_sucessLen = _out5;
+        @_110_bufferSize = _out6;
+      }
+      @FileStream @_116_originalStream = default(@FileStream);
+      @FileStream @_117_copyStream = default(@FileStream);
+      bool @_118_successOriginal = false;
+      bool @_119_successCopy = false;
+      bool _rhs3 = false;
+      bool _rhs2 = _rhs3;
+      bool _rhs5 = false;
+      bool _rhs4 = _rhs5;
+      @_118_successOriginal = _rhs2;
+      @_119_successCopy = _rhs4;
+      bool @_120_successRead = false;
+      bool @_121_successWrite = false;
+      bool _rhs7 = false;
+      bool _rhs6 = _rhs7;
+      bool _rhs9 = false;
+      bool _rhs8 = _rhs9;
+      @_120_successRead = _rhs6;
+      @_121_successWrite = _rhs8;
+      bool @_122_successClose = false;
+      bool @_123_successCloseCopy = false;
+      bool _rhs11 = false;
+      bool _rhs10 = _rhs11;
+      bool _rhs13 = false;
+      bool _rhs12 = _rhs13;
+      @_122_successClose = _rhs10;
+      @_123_successCloseCopy = _rhs12;
+      if ((@_111_sucessLen) && (!(@_115_CopyExist)))
+      {
+        byte[] @_124_buffer = (byte[])null;
+        var _nw1 = new byte[(int)(@_110_bufferSize)];
+        @_124_buffer = _nw1;
+        bool _out7;
+        @FileStream _out8;
+        @FileStream.@Open(@_112_original, out _out7, out _out8);
+        @_118_successOriginal = _out7;
+        @_116_originalStream = _out8;
+        if (@_118_successOriginal)
         {
-          bool _out6;
-          @FileStream _out7;
-          @FileStream.@Open(@_104_copy, out _out6, out _out7);
-          @_108_successCopy = _out6;
-          @_106_copyStream = _out7;
-          if (@_108_successCopy)
+          bool _out9;
+          @FileStream _out10;
+          @FileStream.@Open(@_113_copy, out _out9, out _out10);
+          @_119_successCopy = _out9;
+          @_117_copyStream = _out10;
+          if (@_119_successCopy)
           {
-            bool _out8;
-            (@_105_originalStream).@Read(0, @_113_buffer, 0, @_101_bufferSize, out _out8);
-            @_109_successRead = _out8;
+            bool _out11;
+            (@_116_originalStream).@Read(0, @_124_buffer, 0, @_110_bufferSize, out _out11);
+            @_120_successRead = _out11;
             { }
-            if (@_109_successRead)
+            if (@_120_successRead)
             {
-              bool _out9;
-              (@_106_copyStream).@Write(0, @_113_buffer, 0, @_101_bufferSize, out _out9);
-              @_110_successWrite = _out9;
+              bool _out12;
+              (@_117_copyStream).@Write(0, @_124_buffer, 0, @_110_bufferSize, out _out12);
+              @_121_successWrite = _out12;
               { }
-              if (@_110_successWrite)
+              if (@_121_successWrite)
               {
-                bool _out10;
-                (@_105_originalStream).@Close(out _out10);
-                @_111_successClose = _out10;
-                if (@_111_successClose)
+                bool _out13;
+                (@_116_originalStream).@Close(out _out13);
+                @_122_successClose = _out13;
+                if (@_122_successClose)
                 {
-                  bool _out11;
-                  (@_106_copyStream).@Close(out _out11);
-                  @_112_successCloseCopy = _out11;
-                  if (@_112_successCloseCopy)
+                  bool _out14;
+                  (@_117_copyStream).@Close(out _out14);
+                  @_123_successCloseCopy = _out14;
+                  if (@_123_successCloseCopy)
                   {
                     System.Console.Write(Dafny.Sequence<char>.FromString("DONE!"));
                   }
@@ -1853,6 +1901,10 @@ namespace @__default {
             }
           }
         }
+      }
+      if (((!(@_123_successCloseCopy)) && (@_114_OriginalExist)) && (!(@_115_CopyExist)))
+      {
+        System.Console.Write(Dafny.Sequence<char>.FromString("Something went wrong"));
       }
     }
   }

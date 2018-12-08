@@ -15,33 +15,45 @@ method ArrayFromSeq<A>(s: seq<A>) returns (a: array<A>)
 
 method {:main} Main(ghost env: HostEnvironment?)
   requires env != null && env.Valid() && env.ok.ok();
-  requires |env.constants.CommandLineArgs()|>= 3
+  requires |env.constants.CommandLineArgs()| >= 3
   requires env.constants.CommandLineArgs()[1] in env.files.state()
   requires  env.constants.CommandLineArgs()[2] !in env.files.state()
   modifies env.ok
   modifies env.files 
-  ensures env.ok.ok() ==> env.constants.CommandLineArgs()[2] in env.files.state();
+  ensures env.ok.ok()  ==> env.constants.CommandLineArgs()[2] in env.files.state();
   ensures env.ok.ok() ==> env.constants.CommandLineArgs()[1] in env.files.state()
   ensures env.ok.ok()  ==> var copy := env.constants.CommandLineArgs()[2];
                           var original :=env.constants.CommandLineArgs()[1];
           env.files.state() == old(env.files.state())[copy:= old(env.files.state())[original]];
   ensures env.ok.ok() ==> copyFile(env.constants.CommandLineArgs()[1],env.constants.CommandLineArgs()[2],env); 
   {
-    // TODO: Detectar Excepções e escrever mensagens (fazer através de elses):
-    //  -Mais ou menos que 3 argumentos (if)
-    //  -O ficheiro de cópia já existe
-    //  -O ficheiro Original não existe
-    //  -Erro genérico
+
+  var numArgs :=env.constants.NumCommandLineArgs(env);
+  if(numArgs<3){
+     print("Not enough arguments, it requires 2");
+  }
+
   var bufferSize:=0;
-  var sucessLen;
+  var sucessLen := false;
   var original:= env.constants.GetCommandLineArg(1,env);   
-   var copy :=env.constants.GetCommandLineArg(2,env);
+  var copy :=env.constants.GetCommandLineArg(2,env);
+  var OriginalExist :=FileStream.FileExists(original,env);
+  if(!OriginalExist){
+    print("Original file not fount...");
+  }
+  var CopyExist := FileStream.FileExists(copy,env);
+  if(CopyExist){
+    print("Destination file already exists...");    
+  }
+  assert CopyExist ==> old(env.constants.CommandLineArgs())[2] in env.files.state();
+  if(OriginalExist){
   sucessLen,bufferSize := FileStream.FileLength(original,env);
+  }
   var originalStream, copyStream;
   var successOriginal,successCopy:=false,false;
   var successRead,successWrite := false,false;
    var successClose,successCloseCopy := false,false;
-  if(sucessLen){
+  if(sucessLen && !CopyExist){
     var buffer := new  byte[bufferSize];
     successOriginal,originalStream := FileStream.Open(original,env);
     if(successOriginal){
@@ -66,7 +78,10 @@ method {:main} Main(ghost env: HostEnvironment?)
     }
   }
   
-
+  if(!successCloseCopy && OriginalExist && !CopyExist){
+     print("Something went wrong");
+  }
+   
   } 
   
 predicate copyFile(original : seq<char>,copy : seq<char>, env: HostEnvironment)
