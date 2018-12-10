@@ -107,6 +107,10 @@ method {:axiom} compress_impl(bytes:array?<byte>) returns (compressed_bytes:arra
   ensures |bytes[..]|>0 ==> bytes[0] == compressed_bytes[0]
  // ensures  compressed_bytes[..] == compress(bytes[..]);
 {
+    if(bytes.Length<=1){
+    compressed_bytes:= bytes;
+    return compressed_bytes;
+    }
     var dictSize :=0;
     var codelen := 1;
     var dict :  map<seq<byte>,seq<byte>>;
@@ -124,7 +128,7 @@ method {:axiom} compress_impl(bytes:array?<byte>) returns (compressed_bytes:arra
         dictSize := dictSize + 1;
         i:= i+1;
     } 
-    print("Create base dictionary");
+    print("Create base dictionary\n");
     
     dict := dict[[i] := [i]];
     dictSize := dictSize + 1;
@@ -136,6 +140,9 @@ method {:axiom} compress_impl(bytes:array?<byte>) returns (compressed_bytes:arra
     var out : seq<seq<byte>>:=[];
     assert |out| == 0;
     
+    var percentageHelper: int := bytes.Length/10;
+  
+    print("0% ");
     while (currentByte < |bytes[..]|)
     decreases |bytes[..]|- currentByte
     //invariant |out|>0 ==> forall i :: 0<=i<|out| ==> exists j:seq<byte> :: j in dict && dict[j] == out[i]
@@ -177,10 +184,15 @@ method {:axiom} compress_impl(bytes:array?<byte>) returns (compressed_bytes:arra
             dictSize := dictSize + 1;
             w := [bytes[currentByte]];
             assert windowchain !in dict ==>  w == [bytes[currentByte]];
-        }
+        }        
         currentByte:= currentByte+1;
+        if(bytes.Length>=10 &&currentByte%percentageHelper==0){
+          print("=> ");
+          print(10*currentByte/percentageHelper);
+          print("% ");
+        }
     }
-    print("Finish encoding cycle\n");
+    print("Finishing encoding cycle\n");
     assert |bytes[..]|==0 ==> |w| ==0;
     if(|w| != 0){
         out:= out + [dict[w]];
@@ -215,7 +227,7 @@ method {:axiom} compress_impl(bytes:array?<byte>) returns (compressed_bytes:arra
     //invariant encoded == compress(bytes[..])[..j+1]
     {   
         auxencoded := [];
-        codelen:=countHelper;
+        countHelper:=codelen;
         ghost var inversecounter:=0;
         if (|out[j]|<countHelper){
           while (|out[j]|<countHelper)
@@ -242,14 +254,123 @@ method {:axiom} compress_impl(bytes:array?<byte>) returns (compressed_bytes:arra
    compressed_bytes:=ArrayFromSeq<byte>(encoded);
   assert |bytes[..]|>0 ==> encoded[0] == compressed_bytes[0];
   assert |bytes[..]|>0 ==> bytes[0] == compressed_bytes[0];
+
+
 }
 
 method decompress_impl(compressed_bytes:array?<byte>) returns (bytes:array?<byte>)
   requires compressed_bytes != null;
   ensures  bytes != null;
-  ensures  bytes[..] == decompress(compressed_bytes[..]);
+  //ensures  bytes[..] == decompress(compressed_bytes[..]);
 {
-  bytes := compressed_bytes;
+  if(compressed_bytes.Length<=1){
+    bytes:= compressed_bytes;
+    return bytes;
+  }
+  var codelen:nat :=1;
+  var firstByte := compressed_bytes[0];
+  
+  while(firstByte != compressed_bytes[codelen])
+  invariant 1<=codelen<compressed_bytes.Length
+  decreases compressed_bytes.Length - codelen
+  {
+    codelen :=codelen+1;
+    if(codelen==compressed_bytes.Length){
+      print("Something went wrong\n");
+      bytes:= compressed_bytes;
+      return bytes;
+    }
+  }
+  var dictSize:nat:=0;
+  var dict :  map<seq<byte>,seq<byte>>;
+  var i:byte:=0;
+  while(i<255)
+  decreases 255-i
+  invariant 0<=i<=255
+  invariant i>0 ==> padding(codelen-1,[i-1]) in dict;
+  invariant i>0 ==> dict[padding(codelen-1,[i-1])] == [i-1];
+  invariant i>0 ==>forall b:byte:: 0<=b<i ==> padding(codelen-1,[b]) in dict
+  //invariant i>0 ==>forall b:byte:: 0<=b<i ==> dict[padding(codelen-1,[b])] == [b]
+  {
+    var auxbyte:seq<byte>:= padding(codelen-1,[i]);
+    dict := dict[auxbyte := [i]]; 
+    assert padding(codelen-1,[i]) in dict;
+    assert dict[padding(codelen-1,[i])] == [i];
+    dictSize := dictSize + 1;
+    i:= i+1;
+    } 
+    print("Create base dictionary\n");
+    
+    dict := dict[ padding(codelen-1,[i]) := [i]];
+    dictSize := dictSize + 1;
+    assert forall b:byte::  padding(codelen-1,[b]) in dict ;
+    var currentword:=1;
+    print(compressed_bytes[0]);
+    print(compressed_bytes[1..codelen+1]);
+    if(compressed_bytes[1..codelen+1] !in dict){
+      print("Something went wrong!\n");
+      bytes:= compressed_bytes;
+      return bytes;
+    }
+  var w := dict[compressed_bytes[1..codelen+1]];
+
+  var out: seq<byte> := w;
+
+  while(codelen*(currentword+1)+1<=compressed_bytes.Length)
+  decreases compressed_bytes.Length -(codelen*currentword+1)
+  {
+    var windowchain:= compressed_bytes[(codelen)*currentword+1..(codelen)*(currentword+1)+1];
+    var entry : seq<byte> ;
+    if(windowchain in dict){
+      entry := dict[windowchain];
+    }else{
+      var auxDict := dictSize;
+      var aux : seq<byte> := [];
+      ghost var helper := 0;
+      while(auxDict>=256)
+      decreases auxDict
+      invariant 0<=auxDict<=dictSize;
+      invariant 0<=helper
+      {   
+        aux := [(auxDict%256) as byte] + aux;
+        auxDict := auxDict/256;                      
+        helper:=1+helper;
+      }
+       aux := [(auxDict%256) as byte] + aux;
+      if(aux==windowchain && |w|>0){
+        
+        entry := w + [w[0]];
+        print(entry);
+      }
+
+    }
+    if(|entry|>0){
+      out:= out + entry;
+      var auxDict := dictSize;
+      var aux : seq<byte> := [];
+      ghost var helper := 0;
+      while(auxDict>=256)
+      decreases auxDict
+      invariant 0<=auxDict<=dictSize;
+      invariant 0<=helper
+      {   
+        aux := [(auxDict%256) as byte] + aux;
+        auxDict := auxDict/256;                      
+        helper:=1+helper;
+      }
+
+      aux := [auxDict as byte] + aux;
+
+      dict := dict[padding(codelen-|aux|,aux):=w+[entry[0]]];
+      dictSize:= dictSize +1;
+      w:=entry;
+    }
+
+    currentword:= currentword+1; 
+  }
+  
+  bytes := ArrayFromSeq(out);
+
 }
 
 method {:main} Main(ghost env:HostEnvironment?)
@@ -345,13 +466,13 @@ method ArrayFromSeq<A>(s: seq<A>) returns (a: array<A>)
 }
 
 
-function padding(counter:int, a:seq<byte>):seq<byte>
+function method padding(counter:int, a:seq<byte>):seq<byte>
 decreases counter
 {
-    a + padd(counter)
+     padd(counter) + a
 }
 
-function padd(counter:int):seq<byte>
+function method padd(counter:int):seq<byte>
 decreases counter
 {
     if counter <=0 then [] else [0] + padd(counter-1)
