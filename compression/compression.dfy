@@ -124,6 +124,8 @@ method {:axiom} compress_impl(bytes:array?<byte>) returns (compressed_bytes:arra
         dictSize := dictSize + 1;
         i:= i+1;
     } 
+    print("Create base dictionary");
+    
     dict := dict[[i] := [i]];
     assert forall b:byte::  [b] in dict ;
     var dictb := dict;
@@ -142,7 +144,7 @@ method {:axiom} compress_impl(bytes:array?<byte>) returns (compressed_bytes:arra
     invariant |bytes[..]|==0 ==> |out|==0;
     invariant w!=[]   ==> ( w==windowchain || w== [bytes[currentByte-1]])
     invariant forall j:byte , x:int :: 0<=x<|bytes[..]| && bytes[x]==j ==> [j] in dict;
-    {
+    { 
         assert |bytes[..]|>0;
          windowchain := w + [bytes[currentByte]];
         if(windowchain in dict){
@@ -174,10 +176,9 @@ method {:axiom} compress_impl(bytes:array?<byte>) returns (compressed_bytes:arra
             w := [bytes[currentByte]];
             assert windowchain !in dict ==>  w == [bytes[currentByte]];
         }
-       
         currentByte:= currentByte+1;
     }
-
+    print("Finish encoding cycle\n");
     assert |bytes[..]|==0 ==> |w| ==0;
     if(|w| != 0){
         out:= out + [dict[w]];
@@ -233,6 +234,7 @@ method {:axiom} compress_impl(bytes:array?<byte>) returns (compressed_bytes:arra
        assert |encoded| >=1;
        j := j+1;
     }
+    print("Finish Padding\n");
   //assert encoded == compress(bytes[..]);
   assert |bytes[..]|>0 ==> encoded[0]==bytes[0];
    compressed_bytes:=ArrayFromSeq<byte>(encoded);

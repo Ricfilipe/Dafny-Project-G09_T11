@@ -165,6 +165,7 @@ method {:axiom} compress_impl(bytes: array?<byte>) returns (compressed_bytes: ar
     dictSize := dictSize + 1;
     i := i + 1;
   }
+  print ""Create base dictionary"";
   dict := dict[[i] := [i]];
   assert forall b: byte :: [b] in dict;
   var dictb := dict;
@@ -212,8 +213,11 @@ method {:axiom} compress_impl(bytes: array?<byte>) returns (compressed_bytes: ar
       w := [bytes[currentByte]];
       assert windowchain !in dict ==> w == [bytes[currentByte]];
     }
+    print [currentByte];
+    print ""\n"";
     currentByte := currentByte + 1;
   }
+  print ""Finish encoding cycle"";
   assert |bytes[..]| == 0 ==> |w| == 0;
   if |w| != 0 {
     out := out + [dict[w]];
@@ -262,6 +266,7 @@ method {:axiom} compress_impl(bytes: array?<byte>) returns (compressed_bytes: ar
     assert |encoded| >= 1;
     j := j + 1;
   }
+  print ""Finish Padding"";
   assert |bytes[..]| > 0 ==> encoded[0] == bytes[0];
   compressed_bytes := ArrayFromSeq<byte>(encoded);
   assert |bytes[..]| > 0 ==> encoded[0] == compressed_bytes[0];
@@ -2072,6 +2077,7 @@ namespace @__default {
         byte _rhs5 = (byte)((@_299_i) + (1));
         @_299_i = _rhs5;
       }
+      System.Console.Write(Dafny.Sequence<char>.FromString("Create base dictionary"));
       Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> _rhs6 = (@_298_dict).Update(Dafny.Sequence<byte>.FromElements(@_299_i), Dafny.Sequence<byte>.FromElements(@_299_i));
       @_298_dict = _rhs6;
       { }
@@ -2138,9 +2144,12 @@ namespace @__default {
           @_303_w = _rhs23;
           { }
         }
+        System.Console.Write(Dafny.Sequence<BigInteger>.FromElements(@_301_currentByte));
+        System.Console.Write(Dafny.Sequence<char>.FromString("\n"));
         BigInteger _rhs24 = (@_301_currentByte) + (new BigInteger(1));
         @_301_currentByte = _rhs24;
       }
+      System.Console.Write(Dafny.Sequence<char>.FromString("Finish encoding cycle"));
       { }
       if ((new BigInteger((@_303_w).Length)) != (new BigInteger(0)))
       {
@@ -2202,6 +2211,7 @@ namespace @__default {
         BigInteger _rhs40 = (@_309_j) + (new BigInteger(1));
         @_309_j = _rhs40;
       }
+      System.Console.Write(Dafny.Sequence<char>.FromString("Finish Padding"));
       { }
       byte[] _out0;
       @__default.@ArrayFromSeq<byte>(@_310_encoded, out _out0);
