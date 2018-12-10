@@ -96,6 +96,7 @@ namespace @__default {
         {
             try
             {
+
                 fstream.Seek(file_offset, System.IO.SeekOrigin.Begin);
                 fstream.Read(buffer, start, num_bytes);
                 ok = true;
@@ -107,13 +108,14 @@ namespace @__default {
             }
         }
 
-        public void Write(int file_offset, byte[] buffer, int start, int num_bytes, out bool ok)
+        public void Write(int file_offset, byte[] buffer, int start, BigInteger num_bytes, out bool ok)
         {
             try
             {
+                int result = (int)num_bytes;
                 fstream.Seek(file_offset, System.IO.SeekOrigin.Begin);
                 fstream.SetLength(file_offset);
-                fstream.Write(buffer, start, num_bytes);
+                fstream.Write(buffer, start, result);
                 ok = true;
             }
             catch (Exception e)

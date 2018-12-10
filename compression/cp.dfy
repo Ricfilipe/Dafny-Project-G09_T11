@@ -5,6 +5,7 @@
  */
 
 include "Io.dfy"
+include "lzw.dfy"
 
 // Useful to convert Dafny strings into arrays of characters.
 method ArrayFromSeq<A>(s: seq<A>) returns (a: array<A>)
