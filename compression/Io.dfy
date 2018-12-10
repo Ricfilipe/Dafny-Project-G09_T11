@@ -137,7 +137,7 @@ class FileStream
         ensures  ok ==> IsOpen();        
         ensures  ok ==> buffer[..] == buffer[..start] + env.files.state()[Name()][file_offset..file_offset as int + num_bytes as int] + buffer[start as int + num_bytes as int..];
             
-    method {:extern} Write(file_offset:nat32, buffer:array?<byte>, start:int32, num_bytes:int32) returns(ok:bool)        
+    method {:extern} Write(file_offset:nat32, buffer:array?<byte>, start:int32, num_bytes:int) returns(ok:bool)        
         requires env.Valid();
         requires env.ok.ok();
         requires IsOpen();
@@ -148,6 +148,7 @@ class FileStream
         modifies this;
         modifies env.ok;
         modifies env.files;
+        ensures  num_bytes<0x80000000 ==> ok == false;
         ensures  env == old(env);
         ensures  env.ok.ok() == ok;
         ensures  Name() == old(Name());
