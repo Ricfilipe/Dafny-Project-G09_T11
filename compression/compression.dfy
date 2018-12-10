@@ -127,6 +127,7 @@ method {:axiom} compress_impl(bytes:array?<byte>) returns (compressed_bytes:arra
     print("Create base dictionary");
     
     dict := dict[[i] := [i]];
+    dictSize := dictSize + 1;
     assert forall b:byte::  [b] in dict ;
     var dictb := dict;
     var currentByte:=0;
@@ -134,6 +135,7 @@ method {:axiom} compress_impl(bytes:array?<byte>) returns (compressed_bytes:arra
     var w : seq<byte> := [];
     var out : seq<seq<byte>>:=[];
     assert |out| == 0;
+    
     while (currentByte < |bytes[..]|)
     decreases |bytes[..]|- currentByte
     //invariant |out|>0 ==> forall i :: 0<=i<|out| ==> exists j:seq<byte> :: j in dict && dict[j] == out[i]
