@@ -72,6 +72,25 @@ decreases input
   if input<0 then []  else if  0<=input<256  then [input as byte] else IntByteConvertor(input/256) + [ (input % 256) as byte] 
 }
 
+function ByteIntConvertor(bytes:seq<byte>):int
+requires |bytes|>0
+{
+  convert(bytes,0)
+}
+
+function convert(bytes:seq<byte>,counter:int):int
+requires |bytes|>0
+requires 0<=counter<=|bytes|
+decreases |bytes|-counter
+{
+  if counter>=|bytes| then 0 else bytes[counter] as int*power(256,counter) + convert(bytes,counter+1)
+}
+
+function  power(a : int , counter :int ):int
+decreases counter
+{
+    if counter<=0 then a else power(a*256,counter-1)
+}
 
 function nextNotdict(bytes:seq<byte>,min:int, max:int,currentdict: seq<seq<byte>>) : seq<seq<byte>>
 requires min+1<= max
@@ -83,17 +102,65 @@ decreases |bytes|-max
 }
 
 
+
 function begindict(counter:int,cap:int) : seq<seq<byte>>
 requires 0<=counter<256
 requires counter<=cap<256
 decreases cap-counter{
  if cap<0 then [] else if counter == cap then [[cap as byte]] else [[(counter) as byte]]+ begindict(counter+1,cap)
 }
-
+/*
 function decompress(bytes:seq<byte>) : seq<byte>
+requires exists i:: 1<=i<|bytes| && bytes[0]==bytes[i] &&forall j:: 0<j<i ==> bytes[j] ==0
 {
-  bytes
+  bytes[0..1] + decompressHelper(bytes,1)
 }
+
+function decompressHelper(bytes:seq<byte> , currentpos : int): seq<byte>
+requires exists i:: 1<=i<|bytes| && bytes[0]==bytes[i] &&forall j:: 0<j<i ==> bytes[j] ==0
+requires |bytes|>0 
+requires 0<=currentpos
+decreases |bytes|-currentpos
+{
+  if currentpos*check4codelen(bytes)+1 >= |bytes| then [] else  FindMatchDic(ByteIntConvertor(bytes[currentpos*check4codelen(bytes)+1..(currentpos+1)*check4codelen(bytes)+1]),getCurrentDict(bytes,currentpos))
+  + decompressHelper(bytes,currentpos+1)
+}
+
+function getCurrentDict(bytes:seq<byte>,limit:int) : seq<seq<byte>>
+{
+   nextNotdictAdd(bytes,1,begindictPadd(bytes,0,255),bytes[1..check4codelen(bytes)+1],limit)
+}
+
+function nextNotdictAdd(bytes:seq<byte>,min:int, currentdict: seq<seq<byte>>,w:seq<byte>,max:int) : seq<seq<byte>>
+requires |w|>0;
+requires min+1<= max
+requires 1<=min<=|bytes|
+requires min<=max<=|bytes|
+decreases max-min
+{
+  if min>=max then []  else 
+    if |currentdict|>ByteIntConvertor(bytes[min*check4codelen(bytes)+1..(min+1)*check4codelen(bytes)+1]) 
+    then nextNotdictAdd(bytes,min+1,currentdict + [w + bytes[min*check4codelen(bytes)+1..(min+1)*check4codelen(bytes)+1][0..1]] ,bytes[min*check4codelen(bytes)+1..(min+1)*check4codelen(bytes)+1],max)
+    else if  |currentdict|==ByteIntConvertor(bytes[min*check4codelen(bytes)+1..(min+1)*check4codelen(bytes)+1]) 
+          then nextNotdictAdd(bytes,min+1,currentdict + [w + w[0..1]] ,w + w[0..1],max)
+          else  nextNotdictAdd(bytes,min+1,currentdict,w,max)
+}
+
+function begindictPadd(bytes:seq<byte>,counter:int,cap:int) : seq<seq<byte>>
+requires 0<=counter<256
+requires counter<=cap<256
+decreases cap-counter{
+ if cap<0 then [] else if counter == cap then [[cap as byte]] else  [padding(check4codelen(bytes)-1,[(counter) as byte])]+ begindict(counter+1,cap)
+}
+
+
+*/
+function FindMatchDic(pos :int, currentdict: seq<seq<byte>>) : seq<byte>
+requires 0<=pos<|currentdict|
+{
+  currentdict[pos] 
+}
+
 
 lemma  lossless(bytes:seq<byte>)
  //ensures decompress(compress(bytes)) == bytes;
@@ -105,6 +172,7 @@ method {:axiom} compress_impl(bytes:array?<byte>) returns (compressed_bytes:arra
   ensures  compressed_bytes != null;
   ensures |bytes[..]|>0 ==> |compressed_bytes[..]| >0
   ensures |bytes[..]|>0 ==> bytes[0] == compressed_bytes[0]
+ // ensures   bytes.Length>1 ==> exists i:: 1<=i<|compressed_bytes[..]| && compressed_bytes[0]==compressed_bytes[i] && forall j:: 0<j<i ==> compressed_bytes[j] ==0 
  // ensures  compressed_bytes[..] == compress(bytes[..]);
 {
     if(bytes.Length<=1){
@@ -145,8 +213,6 @@ method {:axiom} compress_impl(bytes:array?<byte>) returns (compressed_bytes:arra
     print("0% ");
     while (currentByte < |bytes[..]|)
     decreases |bytes[..]|- currentByte
-    //invariant |out|>0 ==> forall i :: 0<=i<|out| ==> exists j:seq<byte> :: j in dict && dict[j] == out[i]
-   // invariant |out| == |compress(bytes[..])[..currentByte]|
     invariant 0<=currentByte<=|bytes[..]|;
     invariant windowchain!=[] ==> windowchain in dict
     invariant currentByte==0 ==>  w==[]
@@ -218,20 +284,16 @@ method {:axiom} compress_impl(bytes:array?<byte>) returns (compressed_bytes:arra
 
     while(j<|out|)
     decreases |out|-j
-    //invariant codelen == div(|dictSeq(bytes[..],|bytes[..]|)|,0)
     invariant |bytes[..]|>0 ==> 1<=|encoded|
     invariant |bytes[..]|>0 ==> encoded[0]==bytes[0]
     invariant 0<=j<=|out|
-   // invariant j<|out| ==> auxencoded == padding(codelen-|out[j]|,out[j])
-    //invariant |out|+1 == |compress(bytes[..])|
-    //invariant encoded == compress(bytes[..])[..j+1]
+    //invariant j<|out| ==> encoded == [bytes[0]] + padder(out,j,codelen)
     {   
         auxencoded := [];
         countHelper:=codelen;
         ghost var inversecounter:=0;
         if (|out[j]|<countHelper){
           while (|out[j]|<countHelper)
-         // invariant auxencoded == padd(inversecounter)
           invariant |out[j]|<=countHelper<=codelen
           invariant  0<=|out[j]|
           invariant |bytes[..]|>0 ==>|encoded|>=1
@@ -248,8 +310,8 @@ method {:axiom} compress_impl(bytes:array?<byte>) returns (compressed_bytes:arra
        assert |encoded| >=1;
        j := j+1;
     }
+
     print("Finish Padding\n");
-  //assert encoded == compress(bytes[..]);
   assert |bytes[..]|>0 ==> encoded[0]==bytes[0];
    compressed_bytes:=ArrayFromSeq<byte>(encoded);
   assert |bytes[..]|>0 ==> encoded[0] == compressed_bytes[0];
@@ -260,6 +322,9 @@ method {:axiom} compress_impl(bytes:array?<byte>) returns (compressed_bytes:arra
 
 method decompress_impl(compressed_bytes:array?<byte>) returns (bytes:array?<byte>)
   requires compressed_bytes != null;
+  requires compressed_bytes.Length>0
+  requires exists i:: 1<=i<|compressed_bytes[..]| && compressed_bytes[0]==compressed_bytes[i] && forall j:: 0<j<i ==> compressed_bytes[j] ==0 
+ 
   ensures  bytes != null;
   //ensures  bytes[..] == decompress(compressed_bytes[..]);
 {
@@ -268,19 +333,24 @@ method decompress_impl(compressed_bytes:array?<byte>) returns (bytes:array?<byte
     return bytes;
   }
   var codelen:nat :=1;
+  assert compressed_bytes[codelen] == 0  || compressed_bytes[0] == compressed_bytes[codelen];
   var firstByte := compressed_bytes[0];
   
   while(firstByte != compressed_bytes[codelen])
   invariant 1<=codelen<compressed_bytes.Length
   decreases compressed_bytes.Length - codelen
   {
+    
     codelen :=codelen+1;
+    
     if(codelen==compressed_bytes.Length){
       print("Something went wrong\n");
       bytes:= compressed_bytes;
       return bytes;
     }
   }
+
+  
   var dictSize:nat:=0;
   var dict :  map<seq<byte>,seq<byte>>;
   var i:byte:=0;
@@ -368,7 +438,7 @@ method decompress_impl(compressed_bytes:array?<byte>) returns (bytes:array?<byte
 
     currentword:= currentword+1; 
   }
-  
+
   bytes := ArrayFromSeq(out);
 
 }
@@ -378,6 +448,8 @@ method {:main} Main(ghost env:HostEnvironment?)
   requires |env.constants.CommandLineArgs()|>=4
   requires env.constants.CommandLineArgs()[1] == "1"[..] ||  env.constants.CommandLineArgs()[1] == "0"[..]
   requires env.constants.CommandLineArgs()[2] in env.files.state()
+  requires var bytes := env.files.state()[env.constants.CommandLineArgs()[2]];
+      env.constants.CommandLineArgs()[1] == "1"[..] ==> exists i:: 1<=i<|bytes| && bytes[0]==bytes[i] &&forall j:: 0<j<i ==> bytes[j] ==0 
   requires env.constants.CommandLineArgs()[3] !in env.files.state()
   modifies env.ok
   modifies env.files 
@@ -476,4 +548,32 @@ function method padd(counter:int):seq<byte>
 decreases counter
 {
     if counter <=0 then [] else [0] + padd(counter-1)
+}
+
+function check4codelen(bytes:seq<byte>):int
+requires exists i:: 1<=i<|bytes| && bytes[0]==bytes[i] &&forall j:: 0<j<i ==> bytes[j] ==0
+{
+  check4codelenHelper(bytes,1)
+} 
+
+function check4codelenHelper(bytes:seq<byte>, counter : int):int
+requires exists i:: 1<=i<|bytes| && bytes[0]==bytes[i] &&forall j:: 0<j<i ==> bytes[j] ==0
+requires 1<=counter<|bytes|
+decreases |bytes|-counter
+{
+  if counter>=|bytes|-1 then counter else if bytes[0]==bytes[counter] then counter else check4codelenHelper(bytes,counter+1)
+}
+
+function padder(bytes:seq<seq<byte>>,limit:int,codelen:int):seq<byte>
+requires 0<=limit<=|bytes|
+{
+  padderRecursion(bytes,limit,codelen,0)
+}
+
+function padderRecursion(bytes:seq<seq<byte>>,limit:int,codelen:int,counter:int):seq<byte>
+requires 0<=limit<=|bytes|
+requires 0<=counter<=limit
+decreases limit-counter
+{
+  if limit==counter then [] else padding(codelen-|bytes[counter]|,bytes[counter])+padderRecursion(bytes,limit,codelen,counter+1)
 }
