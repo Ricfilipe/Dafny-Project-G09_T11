@@ -10,7 +10,7 @@ include "Io.dfy"
 
 function compress(bytes:seq<byte>) : seq<byte>
 {
-  if |bytes|==0 then [] else [bytes[0]] + compressorHelper(bytes,0,[])
+  if |bytes|==0 then [] else  [bytes[0]] + compressorHelper(bytes,0,[])
 }
 
 function compressorHelper(bytes:seq<byte> , currentpos : int, lastBytes:seq<byte>): seq<byte>
@@ -18,11 +18,12 @@ requires |bytes|>0
 requires 0<=currentpos
 decreases |bytes|-currentpos
 {
- if currentpos>= |bytes| then [] else if |lastBytes| > 1 then compressorHelper(bytes, currentpos + 1,  lastBytes[1..] ) else
+ if currentpos>= |bytes| then [] else if |lastBytes| > 1 then compressorHelper(bytes, currentpos + 1,  lastBytes[1..] ) else    // skip bytes already compressed
   if |lastBytes| == 1 then compressorHelper(bytes, currentpos + 1, [] ) else
-  padding(div(|dictSeq(bytes,|bytes|)| - |IntByteConvertor( findMatch( BestMatch(bytes,currentpos,1,dictSeq(bytes,currentpos)),0,dictSeq(bytes,currentpos)))|,0)
-  ,IntByteConvertor( findMatch( BestMatch(bytes,currentpos,1,dictSeq(bytes,currentpos)),0,dictSeq(bytes,currentpos)))) 
-  + if  | BestMatch(bytes,currentpos,1,dictSeq(bytes,currentpos))|>1 then compressorHelper(bytes, currentpos + 1,  BestMatch(bytes,currentpos,1,dictSeq(bytes,currentpos))[1..])
+  padding(div(|dictSeq(bytes,|bytes|)| - |IntByteConvertor( findMatch( BestMatch(bytes,currentpos,1,dictSeq(bytes,currentpos)),0,dictSeq(bytes,currentpos)))|,0) // padding to word size 
+  ,IntByteConvertor( findMatch( BestMatch(bytes,currentpos,1,dictSeq(bytes,currentpos)),0,dictSeq(bytes,currentpos))))                                          // ex: word size 2 [1] => [0,1]
+  + if  |BestMatch(bytes,currentpos,1,dictSeq(bytes,currentpos))|>1  // the number of bytes tranlated
+   then compressorHelper(bytes, currentpos + 1,  BestMatch(bytes,currentpos,1,dictSeq(bytes,currentpos))[1..]) 
   else compressorHelper(bytes, currentpos + 1, [] )
 }
 
@@ -111,18 +112,15 @@ decreases cap-counter{
 }
 
 function decompress(bytes:seq<byte>) : seq<byte>
-
 requires exists i:: 1<=i<|bytes| && bytes[0]==bytes[i]  &&forall j:: 0<j<i ==> bytes[j] ==0
-
-
 requires check4codelen(bytes)>0                                                                                                                                               
 requires ((|bytes|-1)%check4codelen(bytes))==0 //compress file size is always going to be composed from words of the same size = check4codelen(bytes)
 {
-  if |bytes|==0 then [] else if |bytes| ==1 then [bytes[0]] else [bytes[0]] + decompressHelper(bytes,1)
+  if |bytes|==0 then [] else if (|bytes| ==1 || |bytes| ==2) then [bytes[0]] else [bytes[0]] + decompressHelper(bytes,1)
 }
 
 function decompressHelper(bytes:seq<byte> , currentpos : int): seq<byte>
-requires |bytes|>=2 
+requires |bytes|>2 
 requires 1<=currentpos
 requires exists i:: 1<=i<|bytes| && bytes[0]==bytes[i] &&forall j:: 0<j<i ==> bytes[j] == 0
 requires check4codelen(bytes)>0
@@ -174,12 +172,21 @@ function FindMatchDic(pos :int, currentdict: seq<seq<byte>>) : seq<byte>
   if 0<=pos<|currentdict| then currentdict[pos]  else []
 }
 
-
+/*
 lemma  lossless(bytes:seq<byte>)
- //ensures decompress(compress(bytes)) == bytes;
+ ensures decompress(compress(bytes)) == bytes;
 {
+  compressSquence(bytes);
+  CompressedCodelen(bytes);
 }
 
+lemma  {:axiom} CompressedCodelen(bytes:seq<byte>)
+ ensures exists i:: 1<=i<|compress(bytes) | && compress(bytes) [0]==compress(bytes) [i]  &&forall j:: 0<j<i ==> compress(bytes) [j] ==0
+ ensures check4codelen(compress(bytes))>0
+ ensures ((|compress(bytes)|-1)%check4codelen(compress(bytes)))==0
+{
+}
+*/
 method {:axiom} compress_impl(bytes:array?<byte>) returns (compressed_bytes:array?<byte>)
   requires bytes != null;
   ensures  compressed_bytes != null;
@@ -568,7 +575,7 @@ decreases counter
 }
 
 function check4codelen(bytes:seq<byte>):int
-requires exists i:: 1<=i<|bytes| && bytes[0]==bytes[i]  &&forall j:: 0<j<i ==> bytes[j] ==0
+requires exists i:: 1<=i<|bytes| && bytes[0]==bytes[i]  && forall j:: 0<j<i ==> bytes[j] ==0
 {
   check4codelenHelper(bytes,1)
 } 
