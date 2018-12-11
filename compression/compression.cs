@@ -16,23 +16,25 @@ function compress(bytes: seq<byte>): seq<byte>
 {
   if |bytes| == 0 then
     []
+  else if |bytes| == 1 then
+    bytes
   else
     [bytes[0]] + compressorHelper(bytes, 0, [])
 }
 
-function compressorHelper(bytes: seq<byte>, currentpos: int, lastBytes: seq<byte>): seq<byte>
+function compressorHelper(bytes: seq<byte>, currentpos: int, w: seq<byte>): seq<byte>
   requires |bytes| > 0
-  requires 0 <= currentpos
+  requires 0 <= currentpos <= |bytes|
   decreases |bytes| - currentpos
 {
   if currentpos >= |bytes| then
     []
-  else if |lastBytes| > 1 then
-    compressorHelper(bytes, currentpos + 1, lastBytes[1..])
-  else if |lastBytes| == 1 then
-    compressorHelper(bytes, currentpos + 1, [])
+  else if exists i: int :: 0 <= i < |dictSeq(bytes, currentpos)| && dictSeq(bytes, currentpos)[i] == [bytes[currentpos]] + w then
+    compressorHelper(bytes, currentpos + 1, [bytes[currentpos]] + w)
+  else if exists i: int :: 0 <= i < |dictSeq(bytes, currentpos)| && dictSeq(bytes, currentpos)[i] == w then
+    padding(div(|dictSeq(bytes, |bytes|)| - |IntByteConvertor(findMatch(w, 0, dictSeq(bytes, currentpos)))|, 0), IntByteConvertor(findMatch(w, 0, dictSeq(bytes, currentpos)))) + compressorHelper(bytes, currentpos + 1, [bytes[currentpos]])
   else
-    padding(div(|dictSeq(bytes, |bytes|)| - |IntByteConvertor(findMatch(BestMatch(bytes, currentpos, 1, dictSeq(bytes, currentpos)), 0, dictSeq(bytes, currentpos)))|, 0), IntByteConvertor(findMatch(BestMatch(bytes, currentpos, 1, dictSeq(bytes, currentpos)), 0, dictSeq(bytes, currentpos)))) + if |BestMatch(bytes, currentpos, 1, dictSeq(bytes, currentpos))| > 1 then compressorHelper(bytes, currentpos + 1, BestMatch(bytes, currentpos, 1, dictSeq(bytes, currentpos))[1..]) else compressorHelper(bytes, currentpos + 1, [])
+    compressorHelper(bytes, currentpos + 1, [bytes[currentpos]])
 }
 
 function div(a: int, counter: int): int
@@ -63,6 +65,7 @@ function iteratordict(bytes: seq<byte>, counter: int, limit: int, currentdict: s
 }
 
 function findMatch(currentComb: seq<byte>, counter: int, currentdict: seq<seq<byte>>): int
+  requires exists i: int :: 0 <= i < |currentdict| && currentComb == currentdict[i]
   requires 0 <= counter <= |currentdict|
   ensures counter >= 0
   decreases |currentdict| - counter
@@ -73,24 +76,6 @@ function findMatch(currentComb: seq<byte>, counter: int, currentdict: seq<seq<by
     counter
   else
     findMatch(currentComb, counter + 1, currentdict)
-}
-
-function BestMatch(bytes: seq<byte>, currentpos: int, counter: int, currentdict: seq<seq<byte>>): seq<byte>
-  requires 0 <= currentpos < |bytes|
-  requires 1 <= counter
-  requires 1 <= counter + currentpos <= |bytes|
-  ensures 1 <= counter
-  decreases |bytes| - currentpos - counter
-{
-  if |bytes| < currentpos + counter then
-    []
-  else if exists j: int :: 0 <= j < |currentdict| && currentdict[j] == bytes[currentpos .. currentpos + counter] then
-    if |bytes| > currentpos + counter && exists j: int :: 0 <= j < |currentdict| && currentdict[j] == bytes[currentpos .. currentpos + counter + 1] then
-      BestMatch(bytes, currentpos, counter + 1, currentdict)
-    else
-      bytes[currentpos .. currentpos + counter]
-  else
-    bytes[currentpos .. currentpos + 1]
 }
 
 function IntByteConvertor(input: int): seq<byte>
@@ -145,9 +130,9 @@ function nextNotdict(bytes: seq<byte>, min: int, max: int, currentdict: seq<seq<
     [bytes[min .. max]]
 }
 
-function begindict(counter: int, cap: int): seq<seq<byte>>
-  requires 0 <= counter < 256
-  requires counter <= cap < 256
+function begindict(counter: byte, cap: byte): seq<seq<byte>>
+  requires 0 <= counter <= 255
+  requires counter <= cap <= 255
   decreases cap - counter
 {
   if cap < 0 then
@@ -166,14 +151,14 @@ function decompress(bytes: seq<byte>): seq<byte>
 {
   if |bytes| == 0 then
     []
-  else if |bytes| == 1 then
+  else if |bytes| == 1 || |bytes| == 2 then
     [bytes[0]]
   else
     [bytes[0]] + decompressHelper(bytes, 1)
 }
 
 function decompressHelper(bytes: seq<byte>, currentpos: int): seq<byte>
-  requires |bytes| >= 2
+  requires |bytes| > 2
   requires 1 <= currentpos
   requires exists i: int :: 1 <= i < |bytes| && bytes[0] == bytes[i] && forall j: int :: 0 < j < i ==> bytes[j] == 0
   requires check4codelen(bytes) > 0
@@ -213,10 +198,10 @@ function nextNotdictAdd(bytes: seq<byte>, min: int, currentdict: seq<seq<byte>>,
     nextNotdictAdd(bytes, min + 1, currentdict, w, max)
 }
 
-function begindictPadd(bytes: seq<byte>, counter: int, cap: int): seq<seq<byte>>
+function begindictPadd(bytes: seq<byte>, counter: byte, cap: byte): seq<seq<byte>>
   requires exists i: int :: 1 <= i < |bytes| && bytes[0] == bytes[i] && forall j: int :: 0 < j < i ==> bytes[j] == 0
-  requires 0 <= counter < 256
-  requires counter <= cap < 256
+  requires 0 <= counter <= 255
+  requires counter <= cap <= 255
   decreases cap - counter
 {
   if cap < 0 then
@@ -237,6 +222,11 @@ function FindMatchDic(pos: int, currentdict: seq<seq<byte>>): seq<byte>
 }
 
 lemma lossless(bytes: seq<byte>)
+  decreases bytes
+{
+}
+
+lemma {:axiom} CompressedCodelen(bytes: seq<byte>)
   decreases bytes
 {
 }
@@ -2313,174 +2303,174 @@ namespace @__default {
         @compressed__bytes = _rhs1;
         return;
       }
-      BigInteger @_627_dictSize = BigInteger.Zero;
+      BigInteger @_609_dictSize = BigInteger.Zero;
       BigInteger _rhs2 = new BigInteger(0);
-      @_627_dictSize = _rhs2;
-      BigInteger @_628_codelen = BigInteger.Zero;
+      @_609_dictSize = _rhs2;
+      BigInteger @_610_codelen = BigInteger.Zero;
       BigInteger _rhs3 = new BigInteger(1);
-      @_628_codelen = _rhs3;
-      Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> @_629_dict = Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>>.Empty;
-      byte @_630_i = 0;
+      @_610_codelen = _rhs3;
+      Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> @_611_dict = Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>>.Empty;
+      byte @_612_i = 0;
       byte _rhs4 = 0;
-      @_630_i = _rhs4;
-      while ((@_630_i) < (255))
+      @_612_i = _rhs4;
+      while ((@_612_i) < (255))
       {
-        Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> _rhs5 = (@_629_dict).Update(Dafny.Sequence<byte>.FromElements(@_630_i), Dafny.Sequence<byte>.FromElements(@_630_i));
-        @_629_dict = _rhs5;
+        Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> _rhs5 = (@_611_dict).Update(Dafny.Sequence<byte>.FromElements(@_612_i), Dafny.Sequence<byte>.FromElements(@_612_i));
+        @_611_dict = _rhs5;
         { }
-        BigInteger _rhs6 = (@_627_dictSize) + (new BigInteger(1));
-        @_627_dictSize = _rhs6;
-        byte _rhs7 = (byte)((@_630_i) + (1));
-        @_630_i = _rhs7;
+        BigInteger _rhs6 = (@_609_dictSize) + (new BigInteger(1));
+        @_609_dictSize = _rhs6;
+        byte _rhs7 = (byte)((@_612_i) + (1));
+        @_612_i = _rhs7;
       }
       System.Console.Write(Dafny.Sequence<char>.FromString("Create base dictionary\n"));
-      Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> _rhs8 = (@_629_dict).Update(Dafny.Sequence<byte>.FromElements(@_630_i), Dafny.Sequence<byte>.FromElements(@_630_i));
-      @_629_dict = _rhs8;
-      BigInteger _rhs9 = (@_627_dictSize) + (new BigInteger(1));
-      @_627_dictSize = _rhs9;
+      Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> _rhs8 = (@_611_dict).Update(Dafny.Sequence<byte>.FromElements(@_612_i), Dafny.Sequence<byte>.FromElements(@_612_i));
+      @_611_dict = _rhs8;
+      BigInteger _rhs9 = (@_609_dictSize) + (new BigInteger(1));
+      @_609_dictSize = _rhs9;
       { }
-      Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> @_631_dictb = Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>>.Empty;
-      Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> _rhs10 = @_629_dict;
-      @_631_dictb = _rhs10;
-      BigInteger @_632_currentByte = BigInteger.Zero;
+      Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> @_613_dictb = Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>>.Empty;
+      Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> _rhs10 = @_611_dict;
+      @_613_dictb = _rhs10;
+      BigInteger @_614_currentByte = BigInteger.Zero;
       BigInteger _rhs11 = new BigInteger(0);
-      @_632_currentByte = _rhs11;
-      Dafny.Sequence<byte> @_633_windowchain = Dafny.Sequence<byte>.Empty;
+      @_614_currentByte = _rhs11;
+      Dafny.Sequence<byte> @_615_windowchain = Dafny.Sequence<byte>.Empty;
       Dafny.Sequence<byte> _rhs12 = Dafny.Sequence<byte>.FromElements();
-      @_633_windowchain = _rhs12;
-      Dafny.Sequence<byte> @_634_w = Dafny.Sequence<byte>.Empty;
+      @_615_windowchain = _rhs12;
+      Dafny.Sequence<byte> @_616_w = Dafny.Sequence<byte>.Empty;
       Dafny.Sequence<byte> _rhs13 = Dafny.Sequence<byte>.FromElements();
-      @_634_w = _rhs13;
-      Dafny.Sequence<Dafny.Sequence<byte>> @_635_out = Dafny.Sequence<Dafny.Sequence<byte>>.Empty;
+      @_616_w = _rhs13;
+      Dafny.Sequence<Dafny.Sequence<byte>> @_617_out = Dafny.Sequence<Dafny.Sequence<byte>>.Empty;
       Dafny.Sequence<Dafny.Sequence<byte>> _rhs14 = Dafny.Sequence<Dafny.Sequence<byte>>.FromElements();
-      @_635_out = _rhs14;
+      @_617_out = _rhs14;
       { }
-      BigInteger @_636_percentageHelper = BigInteger.Zero;
+      BigInteger @_618_percentageHelper = BigInteger.Zero;
       BigInteger _rhs15 = Dafny.Helpers.EuclideanDivision(new BigInteger((@bytes).@Length), new BigInteger(10));
-      @_636_percentageHelper = _rhs15;
+      @_618_percentageHelper = _rhs15;
       System.Console.Write(Dafny.Sequence<char>.FromString("0% "));
-      while ((@_632_currentByte) < (new BigInteger((Dafny.Helpers.SeqFromArray(@bytes)).Length)))
+      while ((@_614_currentByte) < (new BigInteger((Dafny.Helpers.SeqFromArray(@bytes)).Length)))
       {
         { }
-        Dafny.Sequence<byte> _rhs16 = (@_634_w).@Concat(Dafny.Sequence<byte>.FromElements((@bytes)[(int)(@_632_currentByte)]));
-        @_633_windowchain = _rhs16;
-        if ((@_629_dict).@Contains(@_633_windowchain))
+        Dafny.Sequence<byte> _rhs16 = (@_616_w).@Concat(Dafny.Sequence<byte>.FromElements((@bytes)[(int)(@_614_currentByte)]));
+        @_615_windowchain = _rhs16;
+        if ((@_611_dict).@Contains(@_615_windowchain))
         {
           Dafny.Sequence<byte> _rhs17 = Dafny.Sequence<byte>.FromElements();
-          @_634_w = _rhs17;
-          Dafny.Sequence<byte> _rhs18 = @_633_windowchain;
-          @_634_w = _rhs18;
+          @_616_w = _rhs17;
+          Dafny.Sequence<byte> _rhs18 = @_615_windowchain;
+          @_616_w = _rhs18;
           { }
         }
         else
         {
-          if ((@_629_dict).@Contains(@_634_w))
+          if ((@_611_dict).@Contains(@_616_w))
           {
             { }
-            Dafny.Sequence<Dafny.Sequence<byte>> _rhs19 = (@_635_out).@Concat(Dafny.Sequence<Dafny.Sequence<byte>>.FromElements((@_629_dict).Select(@_634_w)));
-            @_635_out = _rhs19;
+            Dafny.Sequence<Dafny.Sequence<byte>> _rhs19 = (@_617_out).@Concat(Dafny.Sequence<Dafny.Sequence<byte>>.FromElements((@_611_dict).Select(@_616_w)));
+            @_617_out = _rhs19;
             { }
           }
-          BigInteger @_637_auxDict = BigInteger.Zero;
-          BigInteger _rhs20 = @_627_dictSize;
-          @_637_auxDict = _rhs20;
-          Dafny.Sequence<byte> @_638_aux = Dafny.Sequence<byte>.Empty;
+          BigInteger @_619_auxDict = BigInteger.Zero;
+          BigInteger _rhs20 = @_609_dictSize;
+          @_619_auxDict = _rhs20;
+          Dafny.Sequence<byte> @_620_aux = Dafny.Sequence<byte>.Empty;
           Dafny.Sequence<byte> _rhs21 = Dafny.Sequence<byte>.FromElements();
-          @_638_aux = _rhs21;
+          @_620_aux = _rhs21;
           { }
-          while ((@_637_auxDict) >= (new BigInteger(256)))
+          while ((@_619_auxDict) >= (new BigInteger(256)))
           {
-            Dafny.Sequence<byte> _rhs22 = (Dafny.Sequence<byte>.FromElements((byte)(Dafny.Helpers.EuclideanModulus(@_637_auxDict, new BigInteger(256))))).@Concat(@_638_aux);
-            @_638_aux = _rhs22;
-            BigInteger _rhs23 = Dafny.Helpers.EuclideanDivision(@_637_auxDict, new BigInteger(256));
-            @_637_auxDict = _rhs23;
+            Dafny.Sequence<byte> _rhs22 = (Dafny.Sequence<byte>.FromElements((byte)(Dafny.Helpers.EuclideanModulus(@_619_auxDict, new BigInteger(256))))).@Concat(@_620_aux);
+            @_620_aux = _rhs22;
+            BigInteger _rhs23 = Dafny.Helpers.EuclideanDivision(@_619_auxDict, new BigInteger(256));
+            @_619_auxDict = _rhs23;
             { }
           }
-          Dafny.Sequence<byte> _rhs24 = (Dafny.Sequence<byte>.FromElements((byte)(@_637_auxDict))).@Concat(@_638_aux);
-          @_638_aux = _rhs24;
-          Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> _rhs25 = (@_629_dict).Update(@_633_windowchain, @_638_aux);
-          @_629_dict = _rhs25;
-          BigInteger _rhs26 = (@_627_dictSize) + (new BigInteger(1));
-          @_627_dictSize = _rhs26;
-          Dafny.Sequence<byte> _rhs27 = Dafny.Sequence<byte>.FromElements((@bytes)[(int)(@_632_currentByte)]);
-          @_634_w = _rhs27;
+          Dafny.Sequence<byte> _rhs24 = (Dafny.Sequence<byte>.FromElements((byte)(@_619_auxDict))).@Concat(@_620_aux);
+          @_620_aux = _rhs24;
+          Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> _rhs25 = (@_611_dict).Update(@_615_windowchain, @_620_aux);
+          @_611_dict = _rhs25;
+          BigInteger _rhs26 = (@_609_dictSize) + (new BigInteger(1));
+          @_609_dictSize = _rhs26;
+          Dafny.Sequence<byte> _rhs27 = Dafny.Sequence<byte>.FromElements((@bytes)[(int)(@_614_currentByte)]);
+          @_616_w = _rhs27;
           { }
         }
-        BigInteger _rhs28 = (@_632_currentByte) + (new BigInteger(1));
-        @_632_currentByte = _rhs28;
-        if (((new BigInteger((@bytes).@Length)) >= (new BigInteger(10))) && ((Dafny.Helpers.EuclideanModulus(@_632_currentByte, @_636_percentageHelper)) == (new BigInteger(0))))
+        BigInteger _rhs28 = (@_614_currentByte) + (new BigInteger(1));
+        @_614_currentByte = _rhs28;
+        if (((new BigInteger((@bytes).@Length)) >= (new BigInteger(10))) && ((Dafny.Helpers.EuclideanModulus(@_614_currentByte, @_618_percentageHelper)) == (new BigInteger(0))))
         {
           System.Console.Write(Dafny.Sequence<char>.FromString("=> "));
-          System.Console.Write(Dafny.Helpers.EuclideanDivision((new BigInteger(10)) * (@_632_currentByte), @_636_percentageHelper));
+          System.Console.Write(Dafny.Helpers.EuclideanDivision((new BigInteger(10)) * (@_614_currentByte), @_618_percentageHelper));
           System.Console.Write(Dafny.Sequence<char>.FromString("% "));
         }
       }
       System.Console.Write(Dafny.Sequence<char>.FromString("Finishing encoding cycle\n"));
       { }
-      if ((new BigInteger((@_634_w).Length)) != (new BigInteger(0)))
+      if ((new BigInteger((@_616_w).Length)) != (new BigInteger(0)))
       {
-        Dafny.Sequence<Dafny.Sequence<byte>> _rhs29 = (@_635_out).@Concat(Dafny.Sequence<Dafny.Sequence<byte>>.FromElements((@_629_dict).Select(@_634_w)));
-        @_635_out = _rhs29;
+        Dafny.Sequence<Dafny.Sequence<byte>> _rhs29 = (@_617_out).@Concat(Dafny.Sequence<Dafny.Sequence<byte>>.FromElements((@_611_dict).Select(@_616_w)));
+        @_617_out = _rhs29;
       }
-      BigInteger @_639_cal = BigInteger.Zero;
-      BigInteger _rhs30 = @_627_dictSize;
-      @_639_cal = _rhs30;
-      BigInteger @_640_countHelper = BigInteger.Zero;
+      BigInteger @_621_cal = BigInteger.Zero;
+      BigInteger _rhs30 = @_609_dictSize;
+      @_621_cal = _rhs30;
+      BigInteger @_622_countHelper = BigInteger.Zero;
       BigInteger _rhs31 = new BigInteger(1);
-      @_640_countHelper = _rhs31;
-      while ((@_639_cal) >= (new BigInteger(256)))
+      @_622_countHelper = _rhs31;
+      while ((@_621_cal) >= (new BigInteger(256)))
       {
-        BigInteger _rhs32 = Dafny.Helpers.EuclideanDivision(@_639_cal, new BigInteger(256));
-        @_639_cal = _rhs32;
-        BigInteger _rhs33 = (@_640_countHelper) + (new BigInteger(1));
-        @_640_countHelper = _rhs33;
+        BigInteger _rhs32 = Dafny.Helpers.EuclideanDivision(@_621_cal, new BigInteger(256));
+        @_621_cal = _rhs32;
+        BigInteger _rhs33 = (@_622_countHelper) + (new BigInteger(1));
+        @_622_countHelper = _rhs33;
       }
-      BigInteger @_641_j = BigInteger.Zero;
+      BigInteger @_623_j = BigInteger.Zero;
       BigInteger _rhs34 = new BigInteger(0);
-      @_641_j = _rhs34;
-      Dafny.Sequence<byte> @_642_encoded = Dafny.Sequence<byte>.Empty;
+      @_623_j = _rhs34;
+      Dafny.Sequence<byte> @_624_encoded = Dafny.Sequence<byte>.Empty;
       if ((new BigInteger((Dafny.Helpers.SeqFromArray(@bytes)).Length)) > (new BigInteger(0)))
       {
         Dafny.Sequence<byte> _rhs35 = Dafny.Sequence<byte>.FromElements((@bytes)[(int)(new BigInteger(0))]);
-        @_642_encoded = _rhs35;
+        @_624_encoded = _rhs35;
       }
       { }
-      BigInteger _rhs36 = @_640_countHelper;
-      @_628_codelen = _rhs36;
+      BigInteger _rhs36 = @_622_countHelper;
+      @_610_codelen = _rhs36;
       { }
-      Dafny.Sequence<byte> @_643_auxencoded = Dafny.Sequence<byte>.Empty;
+      Dafny.Sequence<byte> @_625_auxencoded = Dafny.Sequence<byte>.Empty;
       Dafny.Sequence<byte> _rhs37 = Dafny.Sequence<byte>.FromElements();
-      @_643_auxencoded = _rhs37;
-      while ((@_641_j) < (new BigInteger((@_635_out).Length)))
+      @_625_auxencoded = _rhs37;
+      while ((@_623_j) < (new BigInteger((@_617_out).Length)))
       {
         Dafny.Sequence<byte> _rhs38 = Dafny.Sequence<byte>.FromElements();
-        @_643_auxencoded = _rhs38;
-        BigInteger _rhs39 = @_628_codelen;
-        @_640_countHelper = _rhs39;
+        @_625_auxencoded = _rhs38;
+        BigInteger _rhs39 = @_610_codelen;
+        @_622_countHelper = _rhs39;
         { }
-        if ((new BigInteger(((@_635_out).Select(@_641_j)).Length)) < (@_640_countHelper))
+        if ((new BigInteger(((@_617_out).Select(@_623_j)).Length)) < (@_622_countHelper))
         {
-          while ((new BigInteger(((@_635_out).Select(@_641_j)).Length)) < (@_640_countHelper))
+          while ((new BigInteger(((@_617_out).Select(@_623_j)).Length)) < (@_622_countHelper))
           {
-            Dafny.Sequence<byte> _rhs40 = (@_643_auxencoded).@Concat(Dafny.Sequence<byte>.FromElements(0));
-            @_643_auxencoded = _rhs40;
-            BigInteger _rhs41 = (@_640_countHelper) - (new BigInteger(1));
-            @_640_countHelper = _rhs41;
+            Dafny.Sequence<byte> _rhs40 = (@_625_auxencoded).@Concat(Dafny.Sequence<byte>.FromElements(0));
+            @_625_auxencoded = _rhs40;
+            BigInteger _rhs41 = (@_622_countHelper) - (new BigInteger(1));
+            @_622_countHelper = _rhs41;
             { }
           }
         }
-        Dafny.Sequence<byte> _rhs42 = (@_643_auxencoded).@Concat((@_635_out).Select(@_641_j));
-        @_643_auxencoded = _rhs42;
-        Dafny.Sequence<byte> _rhs43 = (@_642_encoded).@Concat(@_643_auxencoded);
-        @_642_encoded = _rhs43;
+        Dafny.Sequence<byte> _rhs42 = (@_625_auxencoded).@Concat((@_617_out).Select(@_623_j));
+        @_625_auxencoded = _rhs42;
+        Dafny.Sequence<byte> _rhs43 = (@_624_encoded).@Concat(@_625_auxencoded);
+        @_624_encoded = _rhs43;
         { }
-        BigInteger _rhs44 = (@_641_j) + (new BigInteger(1));
-        @_641_j = _rhs44;
+        BigInteger _rhs44 = (@_623_j) + (new BigInteger(1));
+        @_623_j = _rhs44;
       }
       System.Console.Write(Dafny.Sequence<char>.FromString("Finish Padding\n"));
       { }
       byte[] _out0;
-      @__default.@ArrayFromSeq<byte>(@_642_encoded, out _out0);
+      @__default.@ArrayFromSeq<byte>(@_624_encoded, out _out0);
       @compressed__bytes = _out0;
       { }
       { }
@@ -2496,18 +2486,18 @@ namespace @__default {
         @bytes = _rhs46;
         return;
       }
-      BigInteger @_644_codelen = BigInteger.Zero;
+      BigInteger @_626_codelen = BigInteger.Zero;
       BigInteger _rhs47 = new BigInteger(1);
-      @_644_codelen = _rhs47;
+      @_626_codelen = _rhs47;
       { }
-      byte @_645_firstByte = 0;
+      byte @_627_firstByte = 0;
       byte _rhs48 = (@compressed__bytes)[(int)(new BigInteger(0))];
-      @_645_firstByte = _rhs48;
-      while ((@_645_firstByte) != ((@compressed__bytes)[(int)(@_644_codelen)]))
+      @_627_firstByte = _rhs48;
+      while ((@_627_firstByte) != ((@compressed__bytes)[(int)(@_626_codelen)]))
       {
-        BigInteger _rhs49 = (@_644_codelen) + (new BigInteger(1));
-        @_644_codelen = _rhs49;
-        if ((@_644_codelen) == (new BigInteger((@compressed__bytes).@Length)))
+        BigInteger _rhs49 = (@_626_codelen) + (new BigInteger(1));
+        @_626_codelen = _rhs49;
+        if ((@_626_codelen) == (new BigInteger((@compressed__bytes).@Length)))
         {
           System.Console.Write(Dafny.Sequence<char>.FromString("Something went wrong\n"));
           byte[] _rhs50 = @compressed__bytes;
@@ -2517,39 +2507,39 @@ namespace @__default {
           return;
         }
       }
-      BigInteger @_646_dictSize = BigInteger.Zero;
+      BigInteger @_628_dictSize = BigInteger.Zero;
       BigInteger _rhs52 = new BigInteger(0);
-      @_646_dictSize = _rhs52;
-      Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> @_647_dict = Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>>.Empty;
-      byte @_648_i = 0;
+      @_628_dictSize = _rhs52;
+      Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> @_629_dict = Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>>.Empty;
+      byte @_630_i = 0;
       byte _rhs53 = 0;
-      @_648_i = _rhs53;
-      while ((@_648_i) < (255))
+      @_630_i = _rhs53;
+      while ((@_630_i) < (255))
       {
-        Dafny.Sequence<byte> @_649_auxbyte = Dafny.Sequence<byte>.Empty;
-        Dafny.Sequence<byte> _rhs54 = @__default.@padding((@_644_codelen) - (new BigInteger(1)), Dafny.Sequence<byte>.FromElements(@_648_i));
-        @_649_auxbyte = _rhs54;
-        Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> _rhs55 = (@_647_dict).Update(@_649_auxbyte, Dafny.Sequence<byte>.FromElements(@_648_i));
-        @_647_dict = _rhs55;
+        Dafny.Sequence<byte> @_631_auxbyte = Dafny.Sequence<byte>.Empty;
+        Dafny.Sequence<byte> _rhs54 = @__default.@padding((@_626_codelen) - (new BigInteger(1)), Dafny.Sequence<byte>.FromElements(@_630_i));
+        @_631_auxbyte = _rhs54;
+        Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> _rhs55 = (@_629_dict).Update(@_631_auxbyte, Dafny.Sequence<byte>.FromElements(@_630_i));
+        @_629_dict = _rhs55;
         { }
         { }
-        BigInteger _rhs56 = (@_646_dictSize) + (new BigInteger(1));
-        @_646_dictSize = _rhs56;
-        byte _rhs57 = (byte)((@_648_i) + (1));
-        @_648_i = _rhs57;
+        BigInteger _rhs56 = (@_628_dictSize) + (new BigInteger(1));
+        @_628_dictSize = _rhs56;
+        byte _rhs57 = (byte)((@_630_i) + (1));
+        @_630_i = _rhs57;
       }
       System.Console.Write(Dafny.Sequence<char>.FromString("Create base dictionary\n"));
-      Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> _rhs58 = (@_647_dict).Update(@__default.@padding((@_644_codelen) - (new BigInteger(1)), Dafny.Sequence<byte>.FromElements(@_648_i)), Dafny.Sequence<byte>.FromElements(@_648_i));
-      @_647_dict = _rhs58;
-      BigInteger _rhs59 = (@_646_dictSize) + (new BigInteger(1));
-      @_646_dictSize = _rhs59;
+      Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> _rhs58 = (@_629_dict).Update(@__default.@padding((@_626_codelen) - (new BigInteger(1)), Dafny.Sequence<byte>.FromElements(@_630_i)), Dafny.Sequence<byte>.FromElements(@_630_i));
+      @_629_dict = _rhs58;
+      BigInteger _rhs59 = (@_628_dictSize) + (new BigInteger(1));
+      @_628_dictSize = _rhs59;
       { }
-      BigInteger @_650_currentword = BigInteger.Zero;
+      BigInteger @_632_currentword = BigInteger.Zero;
       BigInteger _rhs60 = new BigInteger(1);
-      @_650_currentword = _rhs60;
+      @_632_currentword = _rhs60;
       System.Console.Write((@compressed__bytes)[(int)(new BigInteger(0))]);
-      System.Console.Write(Dafny.Helpers.SeqFromArray(@compressed__bytes).Take((@_644_codelen) + (new BigInteger(1))).Drop(new BigInteger(1)));
-      if (!(@_647_dict).@Contains(Dafny.Helpers.SeqFromArray(@compressed__bytes).Take((@_644_codelen) + (new BigInteger(1))).Drop(new BigInteger(1))))
+      System.Console.Write(Dafny.Helpers.SeqFromArray(@compressed__bytes).Take((@_626_codelen) + (new BigInteger(1))).Drop(new BigInteger(1)));
+      if (!(@_629_dict).@Contains(Dafny.Helpers.SeqFromArray(@compressed__bytes).Take((@_626_codelen) + (new BigInteger(1))).Drop(new BigInteger(1))))
       {
         System.Console.Write(Dafny.Sequence<char>.FromString("Something went wrong!\n"));
         byte[] _rhs61 = @compressed__bytes;
@@ -2558,234 +2548,234 @@ namespace @__default {
         @bytes = _rhs62;
         return;
       }
-      Dafny.Sequence<byte> @_651_w = Dafny.Sequence<byte>.Empty;
-      Dafny.Sequence<byte> _rhs63 = (@_647_dict).Select(Dafny.Helpers.SeqFromArray(@compressed__bytes).Take((@_644_codelen) + (new BigInteger(1))).Drop(new BigInteger(1)));
-      @_651_w = _rhs63;
-      Dafny.Sequence<byte> @_652_out = Dafny.Sequence<byte>.Empty;
-      Dafny.Sequence<byte> _rhs64 = @_651_w;
-      @_652_out = _rhs64;
-      while ((((@_644_codelen) * ((@_650_currentword) + (new BigInteger(1)))) + (new BigInteger(1))) <= (new BigInteger((@compressed__bytes).@Length)))
+      Dafny.Sequence<byte> @_633_w = Dafny.Sequence<byte>.Empty;
+      Dafny.Sequence<byte> _rhs63 = (@_629_dict).Select(Dafny.Helpers.SeqFromArray(@compressed__bytes).Take((@_626_codelen) + (new BigInteger(1))).Drop(new BigInteger(1)));
+      @_633_w = _rhs63;
+      Dafny.Sequence<byte> @_634_out = Dafny.Sequence<byte>.Empty;
+      Dafny.Sequence<byte> _rhs64 = @_633_w;
+      @_634_out = _rhs64;
+      while ((((@_626_codelen) * ((@_632_currentword) + (new BigInteger(1)))) + (new BigInteger(1))) <= (new BigInteger((@compressed__bytes).@Length)))
       {
-        Dafny.Sequence<byte> @_653_windowchain = Dafny.Sequence<byte>.Empty;
-        Dafny.Sequence<byte> _rhs65 = Dafny.Helpers.SeqFromArray(@compressed__bytes).Take(((@_644_codelen) * ((@_650_currentword) + (new BigInteger(1)))) + (new BigInteger(1))).Drop(((@_644_codelen) * (@_650_currentword)) + (new BigInteger(1)));
-        @_653_windowchain = _rhs65;
-        Dafny.Sequence<byte> @_654_entry = Dafny.Sequence<byte>.Empty;
-        if ((@_647_dict).@Contains(@_653_windowchain))
+        Dafny.Sequence<byte> @_635_windowchain = Dafny.Sequence<byte>.Empty;
+        Dafny.Sequence<byte> _rhs65 = Dafny.Helpers.SeqFromArray(@compressed__bytes).Take(((@_626_codelen) * ((@_632_currentword) + (new BigInteger(1)))) + (new BigInteger(1))).Drop(((@_626_codelen) * (@_632_currentword)) + (new BigInteger(1)));
+        @_635_windowchain = _rhs65;
+        Dafny.Sequence<byte> @_636_entry = Dafny.Sequence<byte>.Empty;
+        if ((@_629_dict).@Contains(@_635_windowchain))
         {
-          Dafny.Sequence<byte> _rhs66 = (@_647_dict).Select(@_653_windowchain);
-          @_654_entry = _rhs66;
+          Dafny.Sequence<byte> _rhs66 = (@_629_dict).Select(@_635_windowchain);
+          @_636_entry = _rhs66;
         }
         else
         {
-          BigInteger @_655_auxDict = BigInteger.Zero;
-          BigInteger _rhs67 = @_646_dictSize;
-          @_655_auxDict = _rhs67;
-          Dafny.Sequence<byte> @_656_aux = Dafny.Sequence<byte>.Empty;
+          BigInteger @_637_auxDict = BigInteger.Zero;
+          BigInteger _rhs67 = @_628_dictSize;
+          @_637_auxDict = _rhs67;
+          Dafny.Sequence<byte> @_638_aux = Dafny.Sequence<byte>.Empty;
           Dafny.Sequence<byte> _rhs68 = Dafny.Sequence<byte>.FromElements();
-          @_656_aux = _rhs68;
+          @_638_aux = _rhs68;
           { }
-          while ((@_655_auxDict) >= (new BigInteger(256)))
+          while ((@_637_auxDict) >= (new BigInteger(256)))
           {
-            Dafny.Sequence<byte> _rhs69 = (Dafny.Sequence<byte>.FromElements((byte)(Dafny.Helpers.EuclideanModulus(@_655_auxDict, new BigInteger(256))))).@Concat(@_656_aux);
-            @_656_aux = _rhs69;
-            BigInteger _rhs70 = Dafny.Helpers.EuclideanDivision(@_655_auxDict, new BigInteger(256));
-            @_655_auxDict = _rhs70;
+            Dafny.Sequence<byte> _rhs69 = (Dafny.Sequence<byte>.FromElements((byte)(Dafny.Helpers.EuclideanModulus(@_637_auxDict, new BigInteger(256))))).@Concat(@_638_aux);
+            @_638_aux = _rhs69;
+            BigInteger _rhs70 = Dafny.Helpers.EuclideanDivision(@_637_auxDict, new BigInteger(256));
+            @_637_auxDict = _rhs70;
             { }
           }
-          Dafny.Sequence<byte> _rhs71 = (Dafny.Sequence<byte>.FromElements((byte)(Dafny.Helpers.EuclideanModulus(@_655_auxDict, new BigInteger(256))))).@Concat(@_656_aux);
-          @_656_aux = _rhs71;
-          if (((@_656_aux).@Equals(@_653_windowchain)) && ((new BigInteger((@_651_w).Length)) > (new BigInteger(0))))
+          Dafny.Sequence<byte> _rhs71 = (Dafny.Sequence<byte>.FromElements((byte)(Dafny.Helpers.EuclideanModulus(@_637_auxDict, new BigInteger(256))))).@Concat(@_638_aux);
+          @_638_aux = _rhs71;
+          if (((@_638_aux).@Equals(@_635_windowchain)) && ((new BigInteger((@_633_w).Length)) > (new BigInteger(0))))
           {
-            Dafny.Sequence<byte> _rhs72 = (@_651_w).@Concat(Dafny.Sequence<byte>.FromElements((@_651_w).Select(new BigInteger(0))));
-            @_654_entry = _rhs72;
-            System.Console.Write(@_654_entry);
+            Dafny.Sequence<byte> _rhs72 = (@_633_w).@Concat(Dafny.Sequence<byte>.FromElements((@_633_w).Select(new BigInteger(0))));
+            @_636_entry = _rhs72;
+            System.Console.Write(@_636_entry);
           }
         }
-        if ((new BigInteger((@_654_entry).Length)) > (new BigInteger(0)))
+        if ((new BigInteger((@_636_entry).Length)) > (new BigInteger(0)))
         {
-          Dafny.Sequence<byte> _rhs73 = (@_652_out).@Concat(@_654_entry);
-          @_652_out = _rhs73;
-          BigInteger @_657_auxDict = BigInteger.Zero;
-          BigInteger _rhs74 = @_646_dictSize;
-          @_657_auxDict = _rhs74;
-          Dafny.Sequence<byte> @_658_aux = Dafny.Sequence<byte>.Empty;
+          Dafny.Sequence<byte> _rhs73 = (@_634_out).@Concat(@_636_entry);
+          @_634_out = _rhs73;
+          BigInteger @_639_auxDict = BigInteger.Zero;
+          BigInteger _rhs74 = @_628_dictSize;
+          @_639_auxDict = _rhs74;
+          Dafny.Sequence<byte> @_640_aux = Dafny.Sequence<byte>.Empty;
           Dafny.Sequence<byte> _rhs75 = Dafny.Sequence<byte>.FromElements();
-          @_658_aux = _rhs75;
+          @_640_aux = _rhs75;
           { }
-          while ((@_657_auxDict) >= (new BigInteger(256)))
+          while ((@_639_auxDict) >= (new BigInteger(256)))
           {
-            Dafny.Sequence<byte> _rhs76 = (Dafny.Sequence<byte>.FromElements((byte)(Dafny.Helpers.EuclideanModulus(@_657_auxDict, new BigInteger(256))))).@Concat(@_658_aux);
-            @_658_aux = _rhs76;
-            BigInteger _rhs77 = Dafny.Helpers.EuclideanDivision(@_657_auxDict, new BigInteger(256));
-            @_657_auxDict = _rhs77;
+            Dafny.Sequence<byte> _rhs76 = (Dafny.Sequence<byte>.FromElements((byte)(Dafny.Helpers.EuclideanModulus(@_639_auxDict, new BigInteger(256))))).@Concat(@_640_aux);
+            @_640_aux = _rhs76;
+            BigInteger _rhs77 = Dafny.Helpers.EuclideanDivision(@_639_auxDict, new BigInteger(256));
+            @_639_auxDict = _rhs77;
             { }
           }
-          Dafny.Sequence<byte> _rhs78 = (Dafny.Sequence<byte>.FromElements((byte)(@_657_auxDict))).@Concat(@_658_aux);
-          @_658_aux = _rhs78;
-          Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> _rhs79 = (@_647_dict).Update(@__default.@padding((@_644_codelen) - (new BigInteger((@_658_aux).Length)), @_658_aux), (@_651_w).@Concat(Dafny.Sequence<byte>.FromElements((@_654_entry).Select(new BigInteger(0)))));
-          @_647_dict = _rhs79;
-          BigInteger _rhs80 = (@_646_dictSize) + (new BigInteger(1));
-          @_646_dictSize = _rhs80;
-          Dafny.Sequence<byte> _rhs81 = @_654_entry;
-          @_651_w = _rhs81;
+          Dafny.Sequence<byte> _rhs78 = (Dafny.Sequence<byte>.FromElements((byte)(@_639_auxDict))).@Concat(@_640_aux);
+          @_640_aux = _rhs78;
+          Dafny.Map<Dafny.Sequence<byte>,Dafny.Sequence<byte>> _rhs79 = (@_629_dict).Update(@__default.@padding((@_626_codelen) - (new BigInteger((@_640_aux).Length)), @_640_aux), (@_633_w).@Concat(Dafny.Sequence<byte>.FromElements((@_636_entry).Select(new BigInteger(0)))));
+          @_629_dict = _rhs79;
+          BigInteger _rhs80 = (@_628_dictSize) + (new BigInteger(1));
+          @_628_dictSize = _rhs80;
+          Dafny.Sequence<byte> _rhs81 = @_636_entry;
+          @_633_w = _rhs81;
         }
-        BigInteger _rhs82 = (@_650_currentword) + (new BigInteger(1));
-        @_650_currentword = _rhs82;
+        BigInteger _rhs82 = (@_632_currentword) + (new BigInteger(1));
+        @_632_currentword = _rhs82;
       }
       byte[] _out1;
-      @__default.@ArrayFromSeq<byte>(@_652_out, out _out1);
+      @__default.@ArrayFromSeq<byte>(@_634_out, out _out1);
       @bytes = _out1;
     }
     public static void @Main()
     {
     TAIL_CALL_START: ;
-      uint @_659_numArgs = 0;
+      uint @_641_numArgs = 0;
       uint _out2;
       @HostConstants.@NumCommandLineArgs(out _out2);
-      @_659_numArgs = _out2;
-      if ((@_659_numArgs) < (4U))
+      @_641_numArgs = _out2;
+      if ((@_641_numArgs) < (4U))
       {
         System.Console.Write(Dafny.Sequence<char>.FromString("Not enough arguments, it requires 3"));
       }
-      bool @_660_compress = false;
+      bool @_642_compress = false;
       bool _rhs83 = false;
-      @_660_compress = _rhs83;
-      bool @_661_uncompress = false;
+      @_642_compress = _rhs83;
+      bool @_643_uncompress = false;
       bool _rhs84 = false;
-      @_661_uncompress = _rhs84;
-      int @_662_bufferSize = 0;
-      BigInteger @_663_writeBufferSize = BigInteger.Zero;
+      @_643_uncompress = _rhs84;
+      int @_644_bufferSize = 0;
+      BigInteger @_645_writeBufferSize = BigInteger.Zero;
       int _rhs86 = 0;
       int _rhs85 = _rhs86;
       BigInteger _rhs88 = new BigInteger(0);
       BigInteger _rhs87 = _rhs88;
-      @_662_bufferSize = _rhs85;
-      @_663_writeBufferSize = _rhs87;
-      bool @_664_sucessLen = false;
+      @_644_bufferSize = _rhs85;
+      @_645_writeBufferSize = _rhs87;
+      bool @_646_sucessLen = false;
       bool _rhs89 = false;
-      @_664_sucessLen = _rhs89;
-      char[] @_665_original = (char[])null;
+      @_646_sucessLen = _rhs89;
+      char[] @_647_original = (char[])null;
       char[] _out3;
       @HostConstants.@GetCommandLineArg(2UL, out _out3);
-      @_665_original = _out3;
-      char[] @_666_copy = new char[0];
+      @_647_original = _out3;
+      char[] @_648_copy = new char[0];
       char[] _out4;
       @HostConstants.@GetCommandLineArg(3UL, out _out4);
-      @_666_copy = _out4;
-      char[] @_667_arg = (char[])null;
+      @_648_copy = _out4;
+      char[] @_649_arg = (char[])null;
       char[] _out5;
       @HostConstants.@GetCommandLineArg(1UL, out _out5);
-      @_667_arg = _out5;
-      bool _rhs90 = (Dafny.Helpers.SeqFromArray(@_667_arg)).@Equals((Dafny.Sequence<char>.FromString("1")));
-      @_661_uncompress = _rhs90;
-      bool _rhs91 = (Dafny.Helpers.SeqFromArray(@_667_arg)).@Equals((Dafny.Sequence<char>.FromString("0")));
-      @_660_compress = _rhs91;
+      @_649_arg = _out5;
+      bool _rhs90 = (Dafny.Helpers.SeqFromArray(@_649_arg)).@Equals((Dafny.Sequence<char>.FromString("1")));
+      @_643_uncompress = _rhs90;
+      bool _rhs91 = (Dafny.Helpers.SeqFromArray(@_649_arg)).@Equals((Dafny.Sequence<char>.FromString("0")));
+      @_642_compress = _rhs91;
       { }
       { }
-      bool @_668_OriginalExist = false;
+      bool @_650_OriginalExist = false;
       bool _out6;
-      @FileStream.@FileExists(@_665_original, out _out6);
-      @_668_OriginalExist = _out6;
-      if (!(@_668_OriginalExist))
+      @FileStream.@FileExists(@_647_original, out _out6);
+      @_650_OriginalExist = _out6;
+      if (!(@_650_OriginalExist))
       {
         System.Console.Write(Dafny.Sequence<char>.FromString("Original file not found..."));
       }
       { }
-      bool @_669_CopyExist = false;
+      bool @_651_CopyExist = false;
       bool _out7;
-      @FileStream.@FileExists(@_666_copy, out _out7);
-      @_669_CopyExist = _out7;
+      @FileStream.@FileExists(@_648_copy, out _out7);
+      @_651_CopyExist = _out7;
       { }
-      if (@_669_CopyExist)
+      if (@_651_CopyExist)
       {
         System.Console.Write(Dafny.Sequence<char>.FromString("Destination file already exists"));
       }
-      if (((@_668_OriginalExist) && (!(@_669_CopyExist))) && ((@_661_uncompress) || (@_660_compress)))
+      if (((@_650_OriginalExist) && (!(@_651_CopyExist))) && ((@_643_uncompress) || (@_642_compress)))
       {
         bool _out8;
         int _out9;
-        @FileStream.@FileLength(@_665_original, out _out8, out _out9);
-        @_664_sucessLen = _out8;
-        @_662_bufferSize = _out9;
+        @FileStream.@FileLength(@_647_original, out _out8, out _out9);
+        @_646_sucessLen = _out8;
+        @_644_bufferSize = _out9;
       }
-      @FileStream @_670_originalStream = default(@FileStream);
-      @FileStream @_671_copyStream = default(@FileStream);
-      bool @_672_successOriginal = false;
-      bool @_673_successCopy = false;
+      @FileStream @_652_originalStream = default(@FileStream);
+      @FileStream @_653_copyStream = default(@FileStream);
+      bool @_654_successOriginal = false;
+      bool @_655_successCopy = false;
       bool _rhs93 = false;
       bool _rhs92 = _rhs93;
       bool _rhs95 = false;
       bool _rhs94 = _rhs95;
-      @_672_successOriginal = _rhs92;
-      @_673_successCopy = _rhs94;
-      bool @_674_successRead = false;
-      bool @_675_successWrite = false;
+      @_654_successOriginal = _rhs92;
+      @_655_successCopy = _rhs94;
+      bool @_656_successRead = false;
+      bool @_657_successWrite = false;
       bool _rhs97 = false;
       bool _rhs96 = _rhs97;
       bool _rhs99 = false;
       bool _rhs98 = _rhs99;
-      @_674_successRead = _rhs96;
-      @_675_successWrite = _rhs98;
-      bool @_676_successClose = false;
-      bool @_677_successCloseCopy = false;
+      @_656_successRead = _rhs96;
+      @_657_successWrite = _rhs98;
+      bool @_658_successClose = false;
+      bool @_659_successCloseCopy = false;
       bool _rhs101 = false;
       bool _rhs100 = _rhs101;
       bool _rhs103 = false;
       bool _rhs102 = _rhs103;
-      @_676_successClose = _rhs100;
-      @_677_successCloseCopy = _rhs102;
-      if ((@_664_sucessLen) && (!(@_669_CopyExist)))
+      @_658_successClose = _rhs100;
+      @_659_successCloseCopy = _rhs102;
+      if ((@_646_sucessLen) && (!(@_651_CopyExist)))
       {
-        byte[] @_678_buffer = (byte[])null;
-        var _nw0 = new byte[(int)(@_662_bufferSize)];
-        @_678_buffer = _nw0;
+        byte[] @_660_buffer = (byte[])null;
+        var _nw0 = new byte[(int)(@_644_bufferSize)];
+        @_660_buffer = _nw0;
         bool _out10;
         @FileStream _out11;
-        @FileStream.@Open(@_665_original, out _out10, out _out11);
-        @_672_successOriginal = _out10;
-        @_670_originalStream = _out11;
-        if (@_672_successOriginal)
+        @FileStream.@Open(@_647_original, out _out10, out _out11);
+        @_654_successOriginal = _out10;
+        @_652_originalStream = _out11;
+        if (@_654_successOriginal)
         {
           bool _out12;
           @FileStream _out13;
-          @FileStream.@Open(@_666_copy, out _out12, out _out13);
-          @_673_successCopy = _out12;
-          @_671_copyStream = _out13;
-          if (@_673_successCopy)
+          @FileStream.@Open(@_648_copy, out _out12, out _out13);
+          @_655_successCopy = _out12;
+          @_653_copyStream = _out13;
+          if (@_655_successCopy)
           {
             bool _out14;
-            (@_670_originalStream).@Read(0, @_678_buffer, 0, @_662_bufferSize, out _out14);
-            @_674_successRead = _out14;
+            (@_652_originalStream).@Read(0, @_660_buffer, 0, @_644_bufferSize, out _out14);
+            @_656_successRead = _out14;
             { }
-            if (@_674_successRead)
+            if (@_656_successRead)
             {
-              byte[] @_679_buffer2 = (byte[])null;
-              if (@_660_compress)
+              byte[] @_661_buffer2 = (byte[])null;
+              if (@_642_compress)
               {
                 byte[] _out15;
-                @__default.@compress__impl(@_678_buffer, out _out15);
-                @_679_buffer2 = _out15;
+                @__default.@compress__impl(@_660_buffer, out _out15);
+                @_661_buffer2 = _out15;
               }
               else
               {
                 byte[] _out16;
-                @__default.@decompress__impl(@_678_buffer, out _out16);
-                @_679_buffer2 = _out16;
+                @__default.@decompress__impl(@_660_buffer, out _out16);
+                @_661_buffer2 = _out16;
               }
               bool _out17;
-              (@_671_copyStream).@Write(0, @_679_buffer2, 0, new BigInteger((Dafny.Helpers.SeqFromArray(@_679_buffer2)).Length), out _out17);
-              @_675_successWrite = _out17;
-              if (@_675_successWrite)
+              (@_653_copyStream).@Write(0, @_661_buffer2, 0, new BigInteger((Dafny.Helpers.SeqFromArray(@_661_buffer2)).Length), out _out17);
+              @_657_successWrite = _out17;
+              if (@_657_successWrite)
               {
                 bool _out18;
-                (@_670_originalStream).@Close(out _out18);
-                @_676_successClose = _out18;
-                if (@_676_successClose)
+                (@_652_originalStream).@Close(out _out18);
+                @_658_successClose = _out18;
+                if (@_658_successClose)
                 {
                   bool _out19;
-                  (@_671_copyStream).@Close(out _out19);
-                  @_677_successCloseCopy = _out19;
-                  if (@_677_successCloseCopy)
+                  (@_653_copyStream).@Close(out _out19);
+                  @_659_successCloseCopy = _out19;
+                  if (@_659_successCloseCopy)
                   {
                     System.Console.Write(Dafny.Sequence<char>.FromString("DONE!"));
                   }
@@ -2795,7 +2785,7 @@ namespace @__default {
           }
         }
       }
-      if (((!(@_677_successCloseCopy)) && (@_668_OriginalExist)) && (!(@_669_CopyExist)))
+      if (((!(@_659_successCloseCopy)) && (@_650_OriginalExist)) && (!(@_651_CopyExist)))
       {
         System.Console.Write(Dafny.Sequence<char>.FromString("Something went wrong"));
       }
@@ -2805,7 +2795,7 @@ namespace @__default {
       @a = new @A[0];
     TAIL_CALL_START: ;
       var _nw1 = new @A[(int)(new BigInteger((@s).Length))];
-      var _arrayinit0 = Dafny.Helpers.Id<@Func<Dafny.Sequence<@A>,@Func<BigInteger,@A>>>((@_680_s) => (@_681_i) => (@_680_s).Select(@_681_i))(@s);
+      var _arrayinit0 = Dafny.Helpers.Id<@Func<Dafny.Sequence<@A>,@Func<BigInteger,@A>>>((@_662_s) => (@_663_i) => (@_662_s).Select(@_663_i))(@s);
       for (int _arrayinit_00 = 0; _arrayinit_00 < _nw1.Length; _arrayinit_00++) {
         _nw1[_arrayinit_00] = _arrayinit0(_arrayinit_00);
       }
